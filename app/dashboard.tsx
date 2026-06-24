@@ -1,104 +1,46 @@
 import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
-import { Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View, StatusBar, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppDrawer from '../components/AppDrawer';
-import StatCard from '../components/StatCard';
 import { useApp } from '../context/AppContext';
 import { useDatabase } from '../context/DatabaseContext';
 import { useColors } from '../hooks/useColors';
 
-interface Section {
-  code: string;
-  titleAr: string;
-  titleEn: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  color: string;
-  route: string;
-  descAr: string;
-  descEn: string;
-}
+const { width } = Dimensions.get('window');
 
 export default function DashboardScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { t, isRTL, subscription, profile } = useApp();
+  const { isRTL, subscription, profile } = useApp();
   const { customers, items, salesInvoices, purchaseInvoices, notifications, vouchers, journalEntries } = useDatabase();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const totalSales = salesInvoices.reduce((s, inv) => s + inv.total, 0);
-  const totalPurchases = purchaseInvoices.reduce((s, inv) => s + inv.total, 0);
+  const totalSales = salesInvoices.reduce((s: number, inv: any) => s + (inv.total||0), 0);
+  const totalPurchases = purchaseInvoices.reduce((s: number, inv: any) => s + (inv.total||0), 0);
   const netProfit = totalSales - totalPurchases;
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const unreadCount = notifications.filter((n: any) => !n.read).length;
 
-  const sections: Section[] = [
-    {
-      code: 'GL',
-      titleAr: 'الأستاذ العام',
-      titleEn: 'General Ledger',
-      icon: 'book-outline',
-      color: colors.section1,
-      route: '/ledger/',
-      descAr: 'الحسابات • السندات • القيود',
-      descEn: 'Accounts • Vouchers • Journals',
-    },
-    {
-      code: 'SA',
-      titleAr: 'العملاء والمبيعات',
-      titleEn: 'Sales & Customers',
-      icon: 'people-outline',
-      color: colors.section3,
-      route: '/sales/',
-      descAr: 'فواتير • عملاء • مندوبون',
-      descEn: 'Invoices • Customers • Reps',
-    },
-    {
-      code: 'PU',
-      titleAr: 'الموردين والمشتريات',
-      titleEn: 'Suppliers & Purchases',
-      icon: 'cube-outline',
-      color: colors.section2,
-      route: '/inventory/',
-      descAr: 'موردون • فواتير شراء • أصناف',
-      descEn: 'Suppliers • Purchase • Items',
-    },
-    {
-      code: 'WH',
-      titleAr: 'المخازن',
-      titleEn: 'Warehouses',
-      icon: 'archive-outline',
-      color: colors.section5,
-      route: '/inventory/',
-      descAr: 'مخازن • حركة • جرد',
-      descEn: 'Warehouses • Movement • Stock',
-    },
-    {
-      code: 'NF',
-      titleAr: 'التنبيهات',
-      titleEn: 'Notifications',
-      icon: 'notifications-outline',
-      color: colors.warning,
-      route: '/notifications',
-      descAr: 'إشعارات • تحذيرات • تنبيهات',
-      descEn: 'Alerts • Warnings • Reminders',
-    },
-    {
-      code: 'RP',
-      titleAr: 'التقارير',
-      titleEn: 'Reports',
-      icon: 'bar-chart-outline',
-      color: colors.section4,
-      route: '/reports/',
-      descAr: 'تقارير • إحصائيات • تصدير',
-      descEn: 'Reports • Analytics • Export',
-    },
+  const sections = [
+    { icon: 'wallet-outline', title: 'الحسابات', route: '/ledger', color: '#2196F3', desc: 'دليل الحسابات والقيود' },
+    { icon: 'cube-outline', title: 'المخزون', route: '/inventory', color: '#FF9800', desc: 'الأصناف والمشتريات' },
+    { icon: 'cart-outline', title: 'المبيعات', route: '/sales', color: '#E91E63', desc: 'العملاء والفواتير' },
+    { icon: 'stats-chart-outline', title: 'التقارير', route: '/reports', color: '#9C27B0', desc: 'جميع التقارير' },
   ];
 
-  const openSection = (route: string) => {
-    if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push(route as never);
+  const quickActions = [
+    { icon: 'arrow-down-circle', label: 'قبض نقدي', route: '/ledger/cash-receipt', color: '#2E7D32' },
+    { icon: 'arrow-up-circle', label: 'صرف نقدي', route: '/ledger/cash-payment', color: '#C62828' },
+    { icon: 'receipt', label: 'فاتورة بيع', route: '/sales/sales-invoice', color: '#E91E63' },
+    { icon: 'create', label: 'قيد يومية', route: '/ledger/journal-entry', color: '#0f3460' },
+  ];
+
+  const greeting = () => {
+    const h = new Date().getHours();
+    if (h < 12) return 'صباح الخير ☀️';
+    if (h < 18) return 'مساء الخير 🌤️';
+    return 'مساء الخير 🌙';
   };
 
   return (
@@ -113,111 +55,80 @@ export default function DashboardScreen() {
       </Modal>
 
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        {/* Header */}
-        <View style={[styles.header, {
-          backgroundColor: colors.primary,
-          paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) + 12,
-          flexDirection: isRTL ? 'row-reverse' : 'row',
-        }]}>
-          <TouchableOpacity onPress={() => setDrawerOpen(true)} style={styles.headerBtn}>
-            <Ionicons name="menu" size={26} color="#fff" />
-          </TouchableOpacity>
-          <View style={{ flex: 1, alignItems: 'center' }}>
-            <Text style={styles.headerTitle}>{isRTL ? 'دفتر المحاسب الذكي' : 'Smart Accountant'}</Text>
-            <Text style={styles.headerSub}>{profile.name || (isRTL ? 'مرحباً' : 'Welcome')}</Text>
-          </View>
-          <TouchableOpacity style={styles.headerBtn} onPress={() => router.push('/notifications' as never)}>
-            <View>
-              <Ionicons name="notifications-outline" size={24} color="#fff" />
-              {unreadCount > 0 && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
-                </View>
-              )}
+        <StatusBar barStyle="light-content" backgroundColor="#0a0a1a" />
+        
+        {/* الهيدر */}
+        <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+          <View style={styles.headerTop}>
+            <TouchableOpacity onPress={() => setDrawerOpen(true)} style={styles.menuBtn}>
+              <Ionicons name="menu-outline" size={24} color="#fff" />
+            </TouchableOpacity>
+            <View style={{ flex: 1, alignItems: 'center' }}>
+              <Text style={styles.greeting}>{greeting()}</Text>
+              <Text style={styles.headerTitle}>دفتر المحاسب الذكي</Text>
             </View>
-          </TouchableOpacity>
+            <TouchableOpacity style={styles.notifBtn} onPress={() => router.push('/notifications')}>
+              <Ionicons name="notifications-outline" size={22} color="#fff" />
+              {unreadCount > 0 && <View style={styles.badge}><Text style={styles.badgeText}>{unreadCount}</Text></View>}
+            </TouchableOpacity>
+          </View>
         </View>
 
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={{ paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 20 }}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Subscription Warning */}
-          {subscription.daysLeft <= 14 && (
-            <View style={[styles.subWarning, { backgroundColor: colors.warning + '18', borderColor: colors.warning }]}>
-              <Ionicons name="warning" size={18} color={colors.warning} />
-              <Text style={[styles.subWarningText, { color: colors.warning }]}>
-                {isRTL
-                  ? `تنبيه: سينتهي اشتراكك خلال ${subscription.daysLeft} يوم`
-                  : `Warning: Subscription expires in ${subscription.daysLeft} days`}
-              </Text>
+        <ScrollView style={styles.scroll} contentContainerStyle={{ paddingBottom: 20 }} showsVerticalScrollIndicator={false}>
+          {/* بطاقة الترحيب */}
+          <View style={styles.welcomeCard}>
+            <View>
+              <Text style={styles.welcomeText}>أهلاً بك، {profile.name || 'المستخدم'}</Text>
+              <Text style={styles.welcomeSub}>تفقد ملخص أعمالك اليوم</Text>
             </View>
-          )}
-
-          {/* Stats Row 1 */}
-          <View style={[styles.statsRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-            <StatCard label={isRTL ? 'المبيعات' : 'Sales'} value={totalSales.toLocaleString()} icon="trending-up" color={colors.section3} />
-            <StatCard label={isRTL ? 'المشتريات' : 'Purchases'} value={totalPurchases.toLocaleString()} icon="trending-down" color={colors.section2} />
-          </View>
-          {/* Stats Row 2 */}
-          <View style={[styles.statsRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-            <StatCard label={isRTL ? 'صافي الربح' : 'Net Profit'} value={netProfit.toLocaleString()} icon="cash-outline" color={netProfit >= 0 ? colors.success : colors.destructive} />
-            <StatCard label={isRTL ? 'العملاء' : 'Customers'} value={customers.length.toString()} icon="people" color={colors.section1} />
-          </View>
-          <View style={[styles.statsRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-            <StatCard label={isRTL ? 'الأصناف' : 'Items'} value={items.length.toString()} icon="cube" color={colors.section4} />
-            <StatCard label={isRTL ? 'السندات' : 'Vouchers'} value={vouchers.length.toString()} icon="document-text" color={colors.section5} />
+            <Ionicons name="diamond" size={40} color="#e8b86d" />
           </View>
 
-          <Text style={[styles.sectionLabel, { color: colors.mutedForeground, textAlign: isRTL ? 'right' : 'left' }]}>
-            {isRTL ? 'الأقسام الرئيسية' : 'Main Sections'}
-          </Text>
+          {/* الإحصائيات */}
+          <View style={styles.statsGrid}>
+            <View style={[styles.statCard, { backgroundColor: '#E3F2FD' }]}>
+              <Ionicons name="trending-up" size={24} color="#2196F3" />
+              <Text style={styles.statValue}>{totalSales.toLocaleString()}</Text>
+              <Text style={styles.statLabel}>المبيعات</Text>
+            </View>
+            <View style={[styles.statCard, { backgroundColor: '#FFF3E0' }]}>
+              <Ionicons name="trending-down" size={24} color="#FF9800" />
+              <Text style={styles.statValue}>{totalPurchases.toLocaleString()}</Text>
+              <Text style={styles.statLabel}>المشتريات</Text>
+            </View>
+            <View style={[styles.statCard, { backgroundColor: netProfit >= 0 ? '#E8F5E9' : '#FFEBEE' }]}>
+              <Ionicons name="cash-outline" size={24} color={netProfit >= 0 ? '#2E7D32' : '#C62828'} />
+              <Text style={[styles.statValue, { color: netProfit >= 0 ? '#2E7D32' : '#C62828' }]}>{netProfit.toLocaleString()}</Text>
+              <Text style={styles.statLabel}>صافي الربح</Text>
+            </View>
+            <View style={[styles.statCard, { backgroundColor: '#F3E5F5' }]}>
+              <Ionicons name="people" size={24} color="#9C27B0" />
+              <Text style={styles.statValue}>{customers.length}</Text>
+              <Text style={styles.statLabel}>العملاء</Text>
+            </View>
+          </View>
 
-          {/* Sections Grid (2 per row) */}
-          <View style={styles.sectionsGrid}>
-            {sections.map((section, i) => (
-              <TouchableOpacity
-                key={i}
-                style={[styles.sectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-                onPress={() => openSection(section.route)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.sectionTopRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                  <View style={[styles.sectionIconWrap, { backgroundColor: section.color + '18' }]}>
-                    <Ionicons name={section.icon} size={26} color={section.color} />
-                  </View>
-                  <View style={[styles.sectionCodeBadge, { backgroundColor: section.color }]}>
-                    <Text style={styles.sectionCode}>{section.code}</Text>
-                  </View>
-                </View>
-                <Text style={[styles.sectionTitle, { color: section.color, textAlign: isRTL ? 'right' : 'left' }]}>
-                  {isRTL ? section.titleAr : section.titleEn}
-                </Text>
-                <Text style={[styles.sectionDesc, { color: colors.mutedForeground, textAlign: isRTL ? 'right' : 'left' }]}>
-                  {isRTL ? section.descAr : section.descEn}
-                </Text>
-                <View style={[styles.sectionArrow, { alignSelf: isRTL ? 'flex-start' : 'flex-end' }]}>
-                  <Ionicons name={isRTL ? 'arrow-back' : 'arrow-forward'} size={16} color={section.color} />
-                </View>
+          {/* عمليات سريعة */}
+          <Text style={styles.sectionTitle}>⚡ عمليات سريعة</Text>
+          <View style={styles.quickRow}>
+            {quickActions.map((q, i) => (
+              <TouchableOpacity key={i} style={[styles.quickBtn, { backgroundColor: q.color + '15' }]} onPress={() => router.push(q.route)} activeOpacity={0.7}>
+                <Ionicons name={q.icon as any} size={28} color={q.color} />
+                <Text style={[styles.quickLabel, { color: q.color }]}>{q.label}</Text>
               </TouchableOpacity>
             ))}
           </View>
 
-          {/* Quick Actions Row */}
-          <Text style={[styles.sectionLabel, { color: colors.mutedForeground, textAlign: isRTL ? 'right' : 'left', marginTop: 8 }]}>
-            {isRTL ? 'وصول سريع' : 'Quick Access'}
-          </Text>
-          <View style={[styles.quickRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-            {[
-              { icon: 'receipt-outline' as const, labelAr: 'سند قبض', labelEn: 'Receipt', route: '/ledger/cash-receipt', color: colors.success },
-              { icon: 'card-outline' as const, labelAr: 'سند صرف', labelEn: 'Payment', route: '/ledger/cash-payment', color: colors.destructive },
-              { icon: 'document-outline' as const, labelAr: 'فاتورة بيع', labelEn: 'Sales', route: '/sales/sales-invoice', color: colors.section3 },
-              { icon: 'book-outline' as const, labelAr: 'قيد', labelEn: 'Journal', route: '/ledger/journal-entry', color: colors.section1 },
-            ].map((q, i) => (
-              <TouchableOpacity key={i} style={[styles.quickBtn, { backgroundColor: q.color + '12', borderColor: q.color + '40' }]} onPress={() => router.push(q.route as never)}>
-                <Ionicons name={q.icon} size={22} color={q.color} />
-                <Text style={[styles.quickLabel, { color: q.color }]}>{isRTL ? q.labelAr : q.labelEn}</Text>
+          {/* الأقسام */}
+          <Text style={styles.sectionTitle}>📂 الأقسام الرئيسية</Text>
+          <View style={styles.sectionsGrid}>
+            {sections.map((s, i) => (
+              <TouchableOpacity key={i} style={styles.sectionCard} onPress={() => router.push(s.route as any)} activeOpacity={0.7}>
+                <View style={[styles.sectionIcon, { backgroundColor: s.color + '20' }]}>
+                  <Ionicons name={s.icon as any} size={30} color={s.color} />
+                </View>
+                <Text style={styles.sectionTitle2}>{s.title}</Text>
+                <Text style={styles.sectionDesc}>{s.desc}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -229,30 +140,32 @@ export default function DashboardScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 16, paddingBottom: 16, justifyContent: 'space-between', alignItems: 'center' },
-  headerBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { color: '#fff', fontSize: 17, fontWeight: '700' },
-  headerSub: { color: 'rgba(255,255,255,0.75)', fontSize: 12, marginTop: 2 },
-  badge: { position: 'absolute', top: -4, right: -6, backgroundColor: '#ef4444', width: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  badgeText: { color: '#fff', fontSize: 9, fontWeight: '700' },
+  header: { backgroundColor: '#0a0a1a', paddingHorizontal: 16, paddingBottom: 20 },
+  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  menuBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
+  notifBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
+  greeting: { color: 'rgba(255,255,255,0.7)', fontSize: 13, textAlign: 'center' },
+  headerTitle: { color: '#fff', fontSize: 18, fontWeight: '700', textAlign: 'center' },
+  badge: { position: 'absolute', top: 2, right: 2, backgroundColor: '#ff4444', width: 18, height: 18, borderRadius: 9, justifyContent: 'center', alignItems: 'center' },
+  badgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
   scroll: { flex: 1, paddingHorizontal: 12 },
-  subWarning: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, padding: 12, borderRadius: 12, borderWidth: 1 },
-  subWarningText: { flex: 1, fontSize: 13, fontWeight: '600' },
-  statsRow: { gap: 10, marginTop: 12 },
-  sectionLabel: { fontSize: 12, fontWeight: '700', marginTop: 18, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
-  sectionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  sectionCard: { width: '47.5%', borderRadius: 14, borderWidth: 1, padding: 14, minHeight: 140 },
-  sectionTopRow: { justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 },
-  sectionIconWrap: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  sectionCodeBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  sectionCode: { color: '#fff', fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
-  sectionTitle: { fontSize: 14, fontWeight: '700', marginBottom: 4 },
-  sectionDesc: { fontSize: 11, lineHeight: 16, marginBottom: 8 },
-  sectionArrow: { marginTop: 4 },
-  quickRow: { gap: 8, marginBottom: 8 },
-  quickBtn: { flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 12, borderWidth: 1, gap: 6 },
-  quickLabel: { fontSize: 11, fontWeight: '700' },
+  welcomeCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#0f3460', borderRadius: 20, padding: 20, marginTop: 12, marginBottom: 8 },
+  welcomeText: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  welcomeSub: { color: 'rgba(255,255,255,0.7)', fontSize: 13, marginTop: 4 },
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  statCard: { width: (width - 40) / 2, padding: 16, borderRadius: 16, alignItems: 'center', elevation: 3 },
+  statValue: { fontSize: 20, fontWeight: '800', color: '#333', marginTop: 8 },
+  statLabel: { fontSize: 12, color: '#666', marginTop: 4 },
+  sectionTitle: { fontSize: 18, fontWeight: '700', color: '#333', marginTop: 24, marginBottom: 12, textAlign: 'right' },
+  quickRow: { flexDirection: 'row', gap: 8 },
+  quickBtn: { flex: 1, alignItems: 'center', padding: 14, borderRadius: 16, gap: 8 },
+  quickLabel: { fontSize: 12, fontWeight: '600' },
+  sectionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  sectionCard: { width: (width - 40) / 2, backgroundColor: '#fff', borderRadius: 18, padding: 20, elevation: 4 },
+  sectionIcon: { width: 56, height: 56, borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+  sectionTitle2: { fontSize: 16, fontWeight: '700', color: '#333', textAlign: 'right' },
+  sectionDesc: { fontSize: 12, color: '#888', textAlign: 'right', marginTop: 4 },
   drawerOverlay: { flex: 1, flexDirection: 'row' },
-  drawerBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' },
+  drawerBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
   drawerContainer: { width: 285 },
 });

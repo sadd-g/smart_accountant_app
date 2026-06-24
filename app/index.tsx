@@ -1,166 +1,133 @@
 import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import {
-  Alert, Image, Platform, StyleSheet, Text,
-  TouchableOpacity, View
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useApp } from '../context/AppContext';
-import { useColors } from '../hooks/useColors';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Platform, StatusBar, KeyboardAvoidingView, Animated, Dimensions } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const PIN_LENGTH = 4;
+const { width } = Dimensions.get('window');
 
 export default function LoginScreen() {
-  const colors = useColors();
-  const insets = useSafeAreaInsets();
-  const { login, t, isRTL, settings, subscription } = useApp();
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
-  const [shake, setShake] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const shakeAnim = useRef(new Animated.Value(0)).current;
 
-  const handleDigit = (digit: string) => {
-    if (pin.length >= PIN_LENGTH) return;
-    if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const newPin = pin + digit;
-    setPin(newPin);
-    setError('');
-    if (newPin.length === PIN_LENGTH) {
-      setTimeout(() => attemptLogin(newPin), 100);
+  const shake = () => {
+    Animated.sequence([
+      Animated.timing(shakeAnim, { toValue: 10, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -10, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 10, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 0, duration: 50, useNativeDriver: true }),
+    ]).start();
+  };
+
+  const addDigit = (d: string) => {
+    if (pin.length < 4) {
+      const n = pin + d;
+      setPin(n);
+      setError('');
+      if (n.length === 4) {
+        setLoading(true);
+        setTimeout(async () => {
+          if (n === '0000') {
+            await AsyncStorage.setItem('is_logged_in', 'true');
+            router.replace('/dashboard');
+          } else {
+            setError('رمز PIN غير صحيح');
+            setPin('');
+            shake();
+          }
+          setLoading(false);
+        }, 300);
+      }
     }
   };
 
-  const handleDelete = () => {
-    if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setPin(p => p.slice(0, -1));
-    setError('');
-  };
+  const removeDigit = () => { setPin(p => p.slice(0, -1)); setError(''); };
 
-  const attemptLogin = (enteredPin: string) => {
-    const success = login(enteredPin);
-    if (success) {
-      if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace('/dashboard');
-    } else {
-      if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setError(t.login.wrongPin);
-      setPin('');
-    }
-  };
-
-  const handleFingerprint = () => {
-    if (Platform.OS === 'web') {
-      Alert.alert('معلومة', 'البصمة غير متاحة على الويب');
-      return;
-    }
-    Alert.alert('البصمة', 'قم بتفعيل البصمة في الإعدادات');
-  };
-
-  const keys = [['1','2','3'],['4','5','6'],['7','8','9'],['',  '0', 'del']];
+  const keys = [['1','2','3'], ['4','5','6'], ['7','8','9'], ['', '0', 'del']];
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.primary, paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) }]}>
-      <View style={styles.logoArea}>
-        <View style={[styles.logoCircle, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
-          <Image
-            source={require('../assets/images/icon.png')}
-            style={styles.logoImage}
-            resizeMode="contain"
-          />
-        </View>
-        <Text style={styles.appTitle}>{t.login.title}</Text>
-        <Text style={styles.appSubtitle}>{t.login.subtitle}</Text>
-      </View>
-
-      <View style={[styles.pinCard, { backgroundColor: colors.card, paddingBottom: insets.bottom + 24 }]}>
-        <View style={styles.dotRow}>
-          {Array.from({ length: PIN_LENGTH }).map((_, i) => (
-            <View
-              key={i}
-              style={[
-                styles.dot,
-                {
-                  backgroundColor: i < pin.length ? colors.primary : colors.border,
-                  borderColor: colors.primary,
-                }
-              ]}
-            />
-          ))}
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS==='ios'?'padding':'height'}>
+      <StatusBar barStyle="light-content" backgroundColor="#0a0a1a" />
+      <Animated.View style={[styles.content, { transform: [{ translateX: shakeAnim }] }]}>
+        <View style={styles.logoSection}>
+          <View style={styles.logoOuter}><View style={styles.logoInner}><Ionicons name="diamond" size={40} color="#e8b86d" /></View></View>
+          <Text style={styles.appName}>دفتر المحاسب الذكي</Text>
+          <Text style={styles.appNameEn}>Smart Accountant</Text>
+          <View style={styles.divider} />
+          <Text style={styles.appDesc}>النظام المحاسبي اليمني المتكامل</Text>
         </View>
 
-        {error ? (
-          <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>
-        ) : (
-          <Text style={[styles.pinHint, { color: colors.mutedForeground }]}>{t.login.pinPlaceholder}</Text>
-        )}
+        <View style={styles.pinCard}>
+          <View style={styles.pinHeader}><Ionicons name="shield-checkmark" size={20} color="#e8b86d" /><Text style={styles.pinTitle}>أدخل رمز الدخول</Text></View>
 
-        <View style={styles.keypad}>
-          {keys.map((row, ri) => (
-            <View key={ri} style={styles.keyRow}>
-              {row.map((key, ki) => (
-                key === '' ? (
-                  <View key={ki} style={styles.keyEmpty} />
-                ) : key === 'del' ? (
-                  <TouchableOpacity key={ki} style={[styles.key, { backgroundColor: colors.secondary + '20' }]} onPress={handleDelete} activeOpacity={0.7}>
-                    <Ionicons name="backspace-outline" size={22} color={colors.foreground} />
-                  </TouchableOpacity>
-                ) : (
-                  <TouchableOpacity key={ki} style={[styles.key, { backgroundColor: colors.muted }]} onPress={() => handleDigit(key)} activeOpacity={0.7}>
-                    <Text style={[styles.keyText, { color: colors.foreground }]}>{key}</Text>
-                  </TouchableOpacity>
-                )
-              ))}
-            </View>
-          ))}
+          <View style={styles.dotsRow}>
+            {[0,1,2,3].map(i => <View key={i} style={[styles.dot, i < pin.length && styles.dotActive, error && styles.dotError]}>{i < pin.length && <View style={styles.dotInner} />}</View>)}
+          </View>
+
+          {error ? <View style={styles.errorBox}><Ionicons name="alert-circle" size={16} color="#ff4444" /><Text style={styles.errorText}>{error}</Text></View> : <Text style={styles.pinHint}>{loading ? '⏳ جاري التحقق...' : '••••'}</Text>}
+
+          <View style={styles.keypad}>
+            {keys.map((row, ri) => (
+              <View key={ri} style={styles.keyRow}>
+                {row.map((key, ki) => {
+                  if (key === '') return <View key={ki} style={styles.keyEmpty} />;
+                  if (key === 'del') return (
+                    <TouchableOpacity key={ki} style={[styles.key, styles.delKey]} onPress={removeDigit} disabled={pin.length===0}>
+                      <Ionicons name="backspace-outline" size={24} color={pin.length===0?'#555':'#fff'} />
+                    </TouchableOpacity>
+                  );
+                  return (
+                    <TouchableOpacity key={ki} style={styles.key} onPress={() => addDigit(key)} disabled={loading}>
+                      <Text style={styles.keyText}>{key}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.footerLinks}>
+            <TouchableOpacity onPress={() => router.push('/owner')}><Text style={styles.footerLink}>🔒 لوحة المالك</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/about')}><Text style={styles.footerLink}>ℹ️ حول التطبيق</Text></TouchableOpacity>
+          </View>
         </View>
 
-        {settings.fingerprint && (
-          <TouchableOpacity style={styles.fingerprintBtn} onPress={handleFingerprint}>
-            <Ionicons name="finger-print" size={28} color={colors.primary} />
-            <Text style={[styles.fingerprintText, { color: colors.primary }]}>{t.login.fingerprint}</Text>
-          </TouchableOpacity>
-        )}
-
-        <View style={styles.bottomRow}>
-          <TouchableOpacity style={styles.ownerBtn} onPress={() => router.push('/owner')}>
-            <Ionicons name="shield-checkmark-outline" size={16} color={colors.mutedForeground} />
-          </TouchableOpacity>
-        </View>
-
-        <Text style={[styles.developer, { color: colors.mutedForeground }]}>{t.login.developer}</Text>
-
-        <View style={[styles.subBadge, { backgroundColor: colors.success + '18' }]}>
-          <Ionicons name="checkmark-circle" size={14} color={colors.success} />
-          <Text style={[styles.subText, { color: colors.success }]}>{t.subscription.freeTrial} • {t.subscription.trialDays}</Text>
-        </View>
-      </View>
-    </View>
+        <Text style={styles.copyright}>© 2024 م/ صدام بشير | جميع الحقوق محفوظة</Text>
+      </Animated.View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  logoArea: { alignItems: 'center', paddingVertical: 32 },
-  logoCircle: { width: 88, height: 88, borderRadius: 44, alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
-  logoImage: { width: 68, height: 68, borderRadius: 34 },
-  appTitle: { fontSize: 24, fontWeight: '800', color: '#fff', marginBottom: 4 },
-  appSubtitle: { fontSize: 14, color: 'rgba(255,255,255,0.75)' },
-  pinCard: { flex: 1, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingTop: 32, paddingHorizontal: 24, alignItems: 'center' },
-  dotRow: { flexDirection: 'row', gap: 16, marginBottom: 12 },
-  dot: { width: 18, height: 18, borderRadius: 9, borderWidth: 2 },
-  errorText: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
-  pinHint: { fontSize: 14, marginBottom: 8 },
-  keypad: { width: '100%', maxWidth: 280, marginTop: 8 },
-  keyRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
-  key: { width: 80, height: 64, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  keyText: { fontSize: 24, fontWeight: '600' },
-  keyEmpty: { width: 80, height: 64 },
-  fingerprintBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16, paddingVertical: 10, paddingHorizontal: 20 },
-  fingerprintText: { fontSize: 14, fontWeight: '600' },
-  bottomRow: { flexDirection: 'row', justifyContent: 'flex-end', width: '100%', marginTop: 8 },
-  ownerBtn: { padding: 8 },
-  developer: { fontSize: 12, marginTop: 8 },
-  subBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
-  subText: { fontSize: 12, fontWeight: '600' },
+  container: { flex: 1, backgroundColor: '#0a0a1a' },
+  content: { flex: 1, justifyContent: 'center', paddingHorizontal: 24 },
+  logoSection: { alignItems: 'center', marginBottom: 40 },
+  logoOuter: { width: 100, height: 100, borderRadius: 30, backgroundColor: 'rgba(232,184,109,0.1)', justifyContent: 'center', alignItems: 'center', marginBottom: 20, transform: [{ rotate: '45deg' }] },
+  logoInner: { width: 70, height: 70, borderRadius: 20, backgroundColor: 'rgba(15,52,96,0.8)', justifyContent: 'center', alignItems: 'center', transform: [{ rotate: '-45deg' }], borderWidth: 2, borderColor: '#e8b86d' },
+  appName: { fontSize: 32, fontWeight: '900', color: '#fff', textAlign: 'center' },
+  appNameEn: { fontSize: 14, color: '#e8b86d', textAlign: 'center', marginTop: 4, letterSpacing: 3 },
+  divider: { width: 60, height: 2, backgroundColor: '#e8b86d', marginVertical: 12 },
+  appDesc: { fontSize: 14, color: 'rgba(255,255,255,0.6)', textAlign: 'center' },
+  pinCard: { backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 24, padding: 30, borderWidth: 1, borderColor: 'rgba(232,184,109,0.2)' },
+  pinHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 24 },
+  pinTitle: { color: '#e8b86d', fontSize: 16, fontWeight: '600' },
+  dotsRow: { flexDirection: 'row', justifyContent: 'center', gap: 20, marginBottom: 20 },
+  dot: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)', justifyContent: 'center', alignItems: 'center' },
+  dotActive: { borderColor: '#e8b86d', backgroundColor: 'rgba(232,184,109,0.2)' },
+  dotError: { borderColor: '#ff4444' },
+  dotInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#e8b86d' },
+  errorBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 20, backgroundColor: 'rgba(255,68,68,0.1)', paddingVertical: 8, borderRadius: 12 },
+  errorText: { color: '#ff4444', fontSize: 13 },
+  pinHint: { textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: 18, marginBottom: 20, letterSpacing: 8 },
+  keypad: { width: '100%', maxWidth: 280, alignSelf: 'center' },
+  keyRow: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 10 },
+  key: { width: 70, height: 60, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.08)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+  keyEmpty: { width: 70, height: 60 },
+  delKey: { backgroundColor: 'rgba(255,68,68,0.2)' },
+  keyText: { fontSize: 26, fontWeight: '600', color: '#fff' },
+  footerLinks: { flexDirection: 'row', justifyContent: 'center', gap: 24, marginTop: 24 },
+  footerLink: { color: 'rgba(255,255,255,0.5)', fontSize: 12 },
+  copyright: { textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: 11, paddingBottom: 20, marginTop: 20 },
 });

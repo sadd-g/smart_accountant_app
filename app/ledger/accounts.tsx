@@ -1,299 +1,210 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Stack } from 'expo-router';
-import React, { useMemo, useState } from 'react';
-import { Alert, FlatList, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Stack, router } from 'expo-router';
+import React, { useMemo, useState, useEffect } from 'react';
+import { Alert, FlatList, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View, Modal, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import FormField from '../../components/FormField';
-import FormModal from '../../components/FormModal';
 import { useApp } from '../../context/AppContext';
-import type { Account } from '../../context/DatabaseContext';
 import { useDatabase } from '../../context/DatabaseContext';
 import { useColors } from '../../hooks/useColors';
+import { formatNumber, genId, safeString } from '../../db/database';
 
 export default function AccountsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { isRTL, t } = useApp();
-  const { accounts, accountGroups, currencies, addAccount, updateAccount, deleteAccount } = useDatabase();
-  const color = colors.section1;
-
+  const { isRTL } = useApp();
+  const { db } = useDatabase() as any;
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [groups, setGroups] = useState<any[]>([]);
+  const [currencies, setCurrencies] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [form, setForm] = useState({
-    name: '', nameAr: '', groupId: '1', type: 'asset' as Account['type'],
-    currencyId: '1', notes: '', balance: '0', isActive: true,
-  });
-  const [showGroupPicker, setShowGroupPicker] = useState(false);
-  const [showTypePicker, setShowTypePicker] = useState(false);
-  const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
+  const [form, setForm] = useState({ name: '', nameAr: '', groupId: 'ag1', type: 'asset', currencyId: 'c1', balance: '', notes: '' });
 
-  // Compute auto-code preview based on group
-  const autoCodePreview = useMemo(() => {
-    const group = accountGroups.find(g => g.id === form.groupId);
-    if (!group) return '—';
-    const prefix = group.code || group.id;
-    const siblings = accounts.filter(a => a.groupId === form.groupId);
-    const nextNum = (siblings.length + 1).toString().padStart(3, '0');
-    return `${prefix}${nextNum}`;
-  }, [form.groupId, accounts, accountGroups]);
+  useEffect(() => { loadAll(); }, [db]);
 
-  const accountTypes: { value: Account['type']; labelAr: string; labelEn: string }[] = [
-    { value: 'asset', labelAr: 'أصول', labelEn: 'Asset' },
-    { value: 'liability', labelAr: 'التزامات', labelEn: 'Liability' },
-    { value: 'equity', labelAr: 'حقوق الملكية', labelEn: 'Equity' },
-    { value: 'income', labelAr: 'إيرادات', labelEn: 'Income' },
-    { value: 'expense', labelAr: 'مصروفات', labelEn: 'Expense' },
-  ];
+  const loadAll = async () => {
+    if (!db) return;
+    try {
+      const [acc, grp, cur] = await Promise.all([
+        db.getAllAsync("SELECT * FROM accounts WHERE is_active=1 ORDER BY code"),
+        db.getAllAsync("SELECT * FROM account_groups WHERE is_active=1 ORDER BY code"),
+        db.getAllAsync("SELECT * FROM currencies WHERE is_active=1"),
+      ]);
+      setAccounts(acc || []); setGroups(grp || []); setCurrencies(cur || []);
+      console.log('✅ Loaded:', acc?.length, 'accounts |', grp?.length, 'groups |', cur?.length, 'currencies');
+    } catch(e) { console.error(e); } finally { setLoading(false); }
+  };
 
   const filtered = useMemo(() => {
     if (!search.trim()) return accounts;
     const q = search.trim().toLowerCase();
-    return accounts.filter(a =>
-      a.code?.toLowerCase().includes(q) ||
-      a.name?.toLowerCase().includes(q) ||
-      a.nameAr?.includes(q)
-    );
+    return accounts.filter((a: any) => (a.code||'').includes(q) || (a.name_ar||'').includes(q) || (a.name||'').toLowerCase().includes(q));
   }, [accounts, search]);
 
-  const openAdd = () => {
-    setEditId(null);
-    setForm({ name: '', nameAr: '', groupId: accountGroups[0]?.id || '1', type: 'asset', currencyId: currencies[0]?.id || '1', notes: '', balance: '0', isActive: true });
-    setShowGroupPicker(false);
-    setShowTypePicker(false);
-    setShowCurrencyPicker(false);
-    setModalVisible(true);
-  };
-
-  const openEdit = (acc: Account) => {
-    setEditId(acc.id);
-    setForm({ name: acc.name, nameAr: acc.nameAr, groupId: acc.groupId, type: acc.type, currencyId: acc.currencyId, notes: acc.notes, balance: acc.balance.toString(), isActive: acc.isActive });
-    setShowGroupPicker(false);
-    setShowTypePicker(false);
-    setShowCurrencyPicker(false);
-    setModalVisible(true);
-  };
+  const openAdd = () => { setEditId(null); setForm({ name: '', nameAr: '', groupId: 'ag1', type: 'asset', currencyId: 'c1', balance: '', notes: '' }); setModalVisible(true); };
+  const openEdit = (a: any) => { setEditId(a.id); setForm({ name: a.name || '', nameAr: a.name_ar || '', groupId: a.group_id || 'ag1', type: a.type || 'asset', currencyId: a.currency_id || 'c1', balance: a.balance?.toString() || '', notes: a.notes || '' }); setModalVisible(true); };
 
   const handleSave = async () => {
-    if (!form.nameAr && !form.name) return Alert.alert('', isRTL ? 'الاسم مطلوب' : 'Name required');
-    if (editId) {
-      await updateAccount(editId, {
-        name: form.name, nameAr: form.nameAr, groupId: form.groupId,
-        type: form.type, currencyId: form.currencyId, notes: form.notes,
-        balance: parseFloat(form.balance) || 0, isActive: form.isActive,
-      });
-    } else {
-      const ok = await addAccount({
-        name: form.name, nameAr: form.nameAr, groupId: form.groupId, type: form.type,
-        currencyId: form.currencyId, notes: form.notes, balance: parseFloat(form.balance) || 0, isActive: true,
-      });
-      if (!ok) return Alert.alert('⚠️', t.common.duplicate);
-    }
-    setModalVisible(false);
+    if (!form.nameAr.trim()) { Alert.alert('تنبيه', 'يرجى إدخال اسم الحساب'); return; }
+    if (!db) return;
+    try {
+      const bal = parseFloat(form.balance) || 0;
+      if (editId) {
+        await db.runAsync("UPDATE accounts SET name=?, name_ar=?, group_id=?, type=?, currency_id=?, balance=?, notes=? WHERE id=?", 
+          [form.name, form.nameAr, form.groupId, form.type, form.currencyId, bal, form.notes, editId]);
+        Alert.alert('✅', 'تم تعديل الحساب');
+      } else {
+        const id = genId();
+        const grp = groups.find((g: any) => g.id === form.groupId);
+        const prefix = grp?.code || '0';
+        const siblings = accounts.filter((a: any) => a.group_id === form.groupId);
+        const code = prefix + (siblings.length + 1).toString().padStart(3, '0');
+        await db.runAsync("INSERT INTO accounts(id,code,name,name_ar,group_id,type,currency_id,balance,notes) VALUES(?,?,?,?,?,?,?,?,?)",
+          [id, code, form.name, form.nameAr, form.groupId, form.type, form.currencyId, bal, form.notes]);
+        Alert.alert('✅', 'تم إضافة الحساب: ' + code);
+      }
+      setModalVisible(false); await loadAll();
+    } catch(e: any) { Alert.alert('❌', e.message || 'فشل الحفظ'); }
   };
 
-  const handleDelete = (acc: Account) => {
-    Alert.alert(
-      isRTL ? 'حذف الحساب' : 'Delete Account',
-      isRTL ? `هل تريد حذف "${acc.nameAr}"؟` : `Delete "${acc.name}"?`,
-      [{ text: isRTL ? 'إلغاء' : 'Cancel', style: 'cancel' }, { text: isRTL ? 'حذف' : 'Delete', style: 'destructive', onPress: () => deleteAccount(acc.id) }]
-    );
+  const handleDelete = async (a: any) => {
+    Alert.alert('🗑️ حذف', `حذف "${a.name_ar}"؟`, [
+      { text: 'إلغاء', style: 'cancel' },
+      { text: 'حذف', style: 'destructive', onPress: async () => { if (db) { await db.runAsync('UPDATE accounts SET is_active=0 WHERE id=?', [a.id]); await loadAll(); } } },
+    ]);
   };
 
-  const selectedGroup = accountGroups.find(g => g.id === form.groupId);
-  const selectedCurrency = currencies.find(c => c.id === form.currencyId);
-  const selectedType = accountTypes.find(tp => tp.value === form.type);
+  const selGroup = groups.find((g: any) => g.id === form.groupId);
+  const selCurrency = currencies.find((c: any) => c.id === form.currencyId);
+
+  if (loading) return <View style={styles.loading}><Text style={{ color: '#666' }}>جاري التحميل...</Text></View>;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Stack.Screen options={{ title: isRTL ? 'الحسابات' : 'Accounts', headerStyle: { backgroundColor: color }, headerTintColor: '#fff' }} />
-
-      {/* Search + Add Header */}
-      <View style={[styles.topBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <View style={[styles.searchBox, { backgroundColor: colors.background, borderColor: colors.border, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-          <Ionicons name="search" size={16} color={colors.mutedForeground} />
-          <TextInput
-            style={[styles.searchInput, { color: colors.foreground, textAlign: isRTL ? 'right' : 'left' }]}
-            placeholder={isRTL ? 'بحث بالرقم أو الاسم...' : 'Search by code or name...'}
-            placeholderTextColor={colors.mutedForeground}
-            value={search}
-            onChangeText={setSearch}
-          />
-          {search.length > 0 && (
-            <TouchableOpacity onPress={() => setSearch('')}>
-              <Ionicons name="close-circle" size={16} color={colors.mutedForeground} />
-            </TouchableOpacity>
-          )}
+      <Stack.Screen options={{ title: '📋 دليل الحسابات', headerStyle: { backgroundColor: '#0f3460' }, headerTintColor: '#fff' }} />
+      
+      <View style={[styles.topBar, { backgroundColor: colors.card }]}>
+        <View style={[styles.searchBox, { backgroundColor: colors.background, borderColor: colors.border }]}>
+          <Ionicons name="search" size={20} color={colors.mutedForeground} />
+          <TextInput style={[styles.searchInput, { color: colors.foreground }]} value={search} onChangeText={setSearch} placeholder="🔍 بحث..." placeholderTextColor={colors.mutedForeground} textAlign="right" />
         </View>
-        <TouchableOpacity style={[styles.addBtn, { backgroundColor: color }]} onPress={openAdd}>
-          <Ionicons name="add" size={22} color="#fff" />
-        </TouchableOpacity>
+        <TouchableOpacity style={styles.addBtn} onPress={openAdd}><Ionicons name="add-circle" size={40} color="#0f3460" /></TouchableOpacity>
       </View>
 
-      {/* Summary bar */}
-      <View style={[styles.summaryBar, { backgroundColor: color + '10', borderBottomColor: colors.border, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-        <Text style={[styles.summaryText, { color: colors.mutedForeground }]}>
-          {isRTL ? `${filtered.length} حساب` : `${filtered.length} accounts`}
-        </Text>
-        <Text style={[styles.summaryText, { color: colors.mutedForeground }]}>
-          {isRTL ? `إجمالي الأرصدة: ${accounts.reduce((s, a) => s + a.balance, 0).toLocaleString()}` : `Total: ${accounts.reduce((s, a) => s + a.balance, 0).toLocaleString()}`}
-        </Text>
+      <View style={[styles.summaryBar, { backgroundColor: '#E8EAF6' }]}>
+        <Text style={styles.summaryText}>📊 {filtered.length} حساب</Text>
+        <Text style={styles.summaryText}>💰 {formatNumber(accounts.reduce((s: number, a: any) => s + (a.balance || 0), 0))}</Text>
       </View>
 
-      <FlatList
-        data={filtered}
-        keyExtractor={a => a.id}
-        contentContainerStyle={{ padding: 12, paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 20 }}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Ionicons name="book-outline" size={48} color={colors.mutedForeground} />
-            <Text style={{ color: colors.mutedForeground, marginTop: 12 }}>
-              {search ? (isRTL ? 'لا نتائج' : 'No results') : (isRTL ? 'لا توجد حسابات' : 'No accounts')}
-            </Text>
-          </View>
-        }
+      <FlatList data={filtered} keyExtractor={(a: any) => a.id} contentContainerStyle={{ padding: 12, paddingBottom: insets.bottom + 40 }}
+        ListEmptyComponent={<View style={styles.empty}><Ionicons name="list-outline" size={50} color="#ccc" /><Text style={{ color: '#888', marginTop: 12 }}>لا توجد حسابات</Text></View>}
         renderItem={({ item }) => {
-          const group = accountGroups.find(g => g.id === item.groupId);
+          const grp = groups.find((g: any) => g.id === item.group_id);
+          const cur = currencies.find((c: any) => c.id === item.currency_id);
           return (
-            <TouchableOpacity
-              style={[styles.accCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={() => openEdit(item)}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.accRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-                <View style={[styles.codeBox, { backgroundColor: color + '14' }]}>
-                  <Text style={[styles.codeText, { color: color }]}>{item.code}</Text>
+            <View style={[styles.card, { backgroundColor: colors.card, borderLeftColor: '#0f3460' }]}>
+              <TouchableOpacity style={{ flex: 1 }} onPress={() => openEdit(item)} activeOpacity={0.7}>
+                <View style={styles.cardRow}>
+                  <View style={styles.codeBox}><Text style={styles.codeText}>{safeString(item.code)}</Text></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.cardName, { color: colors.foreground }]}>{safeString(item.name_ar || item.name)}</Text>
+                    <Text style={[styles.cardSub, { color: colors.mutedForeground }]}>{safeString(grp?.name_ar || '')} | {safeString(cur?.symbol || '')}</Text>
+                  </View>
+                  <Text style={[styles.balance, { color: (item.balance || 0) >= 0 ? '#2E7D32' : '#C62828' }]}>{formatNumber(item.balance)}</Text>
                 </View>
-                <View style={{ flex: 1, marginLeft: isRTL ? 0 : 10, marginRight: isRTL ? 10 : 0 }}>
-                  <Text style={[styles.accName, { color: colors.foreground, textAlign: isRTL ? 'right' : 'left' }]}>
-                    {isRTL ? item.nameAr || item.name : item.name || item.nameAr}
-                  </Text>
-                  <Text style={[styles.accGroup, { color: colors.mutedForeground, textAlign: isRTL ? 'right' : 'left' }]}>
-                    {isRTL ? group?.nameAr || '' : group?.name || ''}
-                  </Text>
-                </View>
-                <View style={{ alignItems: isRTL ? 'flex-start' : 'flex-end' }}>
-                  <Text style={[styles.accBalance, { color: item.balance >= 0 ? colors.success : colors.destructive }]}>
-                    {item.balance.toLocaleString()}
-                  </Text>
-                  {!item.isActive && (
-                    <Text style={[styles.inactiveTag, { color: colors.mutedForeground }]}>
-                      {isRTL ? 'غير نشط' : 'Inactive'}
-                    </Text>
-                  )}
-                </View>
-                <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item)}>
-                  <Ionicons name="trash-outline" size={18} color={colors.destructive} />
+              </TouchableOpacity>
+              <View style={styles.actionRow}>
+                <TouchableOpacity style={styles.actionBtn} onPress={() => openEdit(item)}>
+                  <Ionicons name="create-outline" size={16} color="#fff" />
+                  <Text style={styles.actionText}>تعديل</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#C62828' }]} onPress={() => handleDelete(item)}>
+                  <Ionicons name="trash-outline" size={16} color="#fff" />
+                  <Text style={styles.actionText}>حذف</Text>
                 </TouchableOpacity>
               </View>
-            </TouchableOpacity>
+            </View>
           );
         }}
       />
 
-      <FormModal
-        visible={modalVisible}
-        title={isRTL ? (editId ? 'تعديل حساب' : 'إضافة حساب') : (editId ? 'Edit Account' : 'Add Account')}
-        onClose={() => setModalVisible(false)}
-        onSave={handleSave}
-        accentColor={color}
-      >
-        {/* Auto-code preview */}
-        {!editId && (
-          <View style={[styles.codePreview, { backgroundColor: color + '10', borderColor: color }]}>
-            <Ionicons name="code-slash-outline" size={16} color={color} />
-            <Text style={[styles.codePreviewText, { color: color }]}>
-              {isRTL ? `الكود المقترح: ${autoCodePreview}` : `Auto code: ${autoCodePreview}`}
-            </Text>
+      <Modal visible={modalVisible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}><View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setModalVisible(false)}><Text style={{ color: '#C62828', fontSize: 16 }}>إلغاء</Text></TouchableOpacity>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>{editId ? '✏️ تعديل حساب' : '➕ إضافة حساب'}</Text>
+            <TouchableOpacity onPress={handleSave}><Text style={{ color: '#2E7D32', fontSize: 16, fontWeight: '700' }}>حفظ</Text></TouchableOpacity>
           </View>
-        )}
+          <ScrollView style={{ padding: 16 }}>
+            {editId && (
+              <View style={styles.codePreview}>
+                <Ionicons name="barcode-outline" size={18} color="#0f3460" />
+                <Text style={{ color: '#0f3460', fontWeight: '700' }}>{safeString(accounts.find((a: any) => a.id === editId)?.code)}</Text>
+              </View>
+            )}
+            <Text style={[styles.label, { color: colors.mutedForeground }]}>اسم الحساب *</Text>
+            <TextInput style={[styles.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]} value={form.nameAr} onChangeText={v => setForm(f => ({ ...f, nameAr: v }))} placeholder="أدخل اسم الحساب" placeholderTextColor={colors.mutedForeground} textAlign="right" />
+            
+            <Text style={[styles.label, { color: colors.mutedForeground }]}>المجموعة</Text>
+            <View style={[styles.pickerList, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              {groups.map((g: any) => (
+                <TouchableOpacity key={g.id} style={[styles.pickerItem, g.id === form.groupId && { backgroundColor: '#E8EAF6' }]} onPress={() => setForm(f => ({ ...f, groupId: g.id }))}>
+                  <Text style={{ color: colors.foreground, fontWeight: g.id === form.groupId ? '700' : '400' }}>{g.name_ar} ({g.code})</Text>
+                  {g.id === form.groupId && <Ionicons name="checkmark" size={20} color="#0f3460" />}
+                </TouchableOpacity>
+              ))}
+            </View>
 
-        <FormField label={isRTL ? 'اسم الحساب (عربي) *' : 'Account Name (AR) *'} value={form.nameAr} onChangeText={v => setForm(f => ({ ...f, nameAr: v }))} required />
-        <FormField label={isRTL ? 'اسم الحساب (إنجليزي)' : 'Account Name (EN)'} value={form.name} onChangeText={v => setForm(f => ({ ...f, name: v }))} />
+            <Text style={[styles.label, { color: colors.mutedForeground }]}>العملة</Text>
+            <View style={[styles.pickerList, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              {currencies.map((c: any) => (
+                <TouchableOpacity key={c.id} style={[styles.pickerItem, c.id === form.currencyId && { backgroundColor: '#E8EAF6' }]} onPress={() => setForm(f => ({ ...f, currencyId: c.id }))}>
+                  <Text style={{ color: colors.foreground, fontWeight: c.id === form.currencyId ? '700' : '400' }}>{c.name_ar} ({c.symbol}) - {formatNumber(c.rate)}</Text>
+                  {c.id === form.currencyId && <Ionicons name="checkmark" size={20} color="#0f3460" />}
+                </TouchableOpacity>
+              ))}
+            </View>
 
-        {/* Group picker */}
-        <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>{isRTL ? 'المجموعة *' : 'Group *'}</Text>
-        <TouchableOpacity style={[styles.selectBtn, { borderColor: colors.border, backgroundColor: colors.card }]} onPress={() => setShowGroupPicker(!showGroupPicker)}>
-          <Text style={{ color: colors.foreground, flex: 1 }}>{isRTL ? selectedGroup?.nameAr : selectedGroup?.name}</Text>
-          <Ionicons name={showGroupPicker ? 'chevron-up' : 'chevron-down'} size={16} color={colors.mutedForeground} />
-        </TouchableOpacity>
-        {showGroupPicker && (
-          <View style={[styles.pickerList, { borderColor: colors.border }]}>
-            {accountGroups.map(g => (
-              <TouchableOpacity key={g.id} style={[styles.pickerItem, { borderBottomColor: colors.border }, g.id === form.groupId && { backgroundColor: color + '12' }]}
-                onPress={() => { setForm(f => ({ ...f, groupId: g.id })); setShowGroupPicker(false); }}>
-                <Text style={{ color: colors.foreground }}>{isRTL ? g.nameAr : g.name}</Text>
-                {g.id === form.groupId && <Ionicons name="checkmark" size={16} color={color} />}
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-
-        {/* Type picker */}
-        <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>{isRTL ? 'النوع *' : 'Type *'}</Text>
-        <TouchableOpacity style={[styles.selectBtn, { borderColor: colors.border, backgroundColor: colors.card }]} onPress={() => setShowTypePicker(!showTypePicker)}>
-          <Text style={{ color: colors.foreground, flex: 1 }}>{isRTL ? selectedType?.labelAr : selectedType?.labelEn}</Text>
-          <Ionicons name={showTypePicker ? 'chevron-up' : 'chevron-down'} size={16} color={colors.mutedForeground} />
-        </TouchableOpacity>
-        {showTypePicker && (
-          <View style={[styles.pickerList, { borderColor: colors.border }]}>
-            {accountTypes.map(tp => (
-              <TouchableOpacity key={tp.value} style={[styles.pickerItem, { borderBottomColor: colors.border }, tp.value === form.type && { backgroundColor: color + '12' }]}
-                onPress={() => { setForm(f => ({ ...f, type: tp.value })); setShowTypePicker(false); }}>
-                <Text style={{ color: colors.foreground }}>{isRTL ? tp.labelAr : tp.labelEn}</Text>
-                {tp.value === form.type && <Ionicons name="checkmark" size={16} color={color} />}
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-
-        {/* Currency picker */}
-        <Text style={[styles.fieldLabel, { color: colors.mutedForeground }]}>{isRTL ? 'العملة' : 'Currency'}</Text>
-        <TouchableOpacity style={[styles.selectBtn, { borderColor: colors.border, backgroundColor: colors.card }]} onPress={() => setShowCurrencyPicker(!showCurrencyPicker)}>
-          <Text style={{ color: colors.foreground, flex: 1 }}>{selectedCurrency?.nameAr || selectedCurrency?.name || '—'}</Text>
-          <Ionicons name={showCurrencyPicker ? 'chevron-up' : 'chevron-down'} size={16} color={colors.mutedForeground} />
-        </TouchableOpacity>
-        {showCurrencyPicker && (
-          <View style={[styles.pickerList, { borderColor: colors.border }]}>
-            {currencies.map(c => (
-              <TouchableOpacity key={c.id} style={[styles.pickerItem, { borderBottomColor: colors.border }, c.id === form.currencyId && { backgroundColor: color + '12' }]}
-                onPress={() => { setForm(f => ({ ...f, currencyId: c.id })); setShowCurrencyPicker(false); }}>
-                <Text style={{ color: colors.foreground }}>{isRTL ? c.nameAr : c.name} ({c.symbol})</Text>
-                {c.id === form.currencyId && <Ionicons name="checkmark" size={16} color={color} />}
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-
-        <FormField label={isRTL ? 'الرصيد الافتتاحي' : 'Opening Balance'} value={form.balance} onChangeText={v => setForm(f => ({ ...f, balance: v }))} keyboardType="numeric" />
-        <FormField label={isRTL ? 'ملاحظات' : 'Notes'} value={form.notes} onChangeText={v => setForm(f => ({ ...f, notes: v }))} multiline />
-      </FormModal>
+            <Text style={[styles.label, { color: colors.mutedForeground }]}>💰 الرصيد الافتتاحي</Text>
+            <TextInput style={[styles.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border, fontSize: 20, fontWeight: '700', textAlign: 'center' }]} value={form.balance} onChangeText={v => setForm(f => ({ ...f, balance: v }))} placeholder="0" placeholderTextColor={colors.mutedForeground} keyboardType="numeric" />
+            
+            <Text style={[styles.label, { color: colors.mutedForeground }]}>ملاحظات</Text>
+            <TextInput style={[styles.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border, height: 60 }]} value={form.notes} onChangeText={v => setForm(f => ({ ...f, notes: v }))} placeholder="ملاحظات..." placeholderTextColor={colors.mutedForeground} multiline textAlign="right" />
+            <View style={{ height: 30 }} />
+          </ScrollView>
+        </View></View>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  topBar: { flexDirection: 'row', alignItems: 'center', padding: 10, gap: 8, borderBottomWidth: 1 },
-  searchBox: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1 },
-  searchInput: { flex: 1, fontSize: 14 },
-  addBtn: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  summaryBar: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 8, borderBottomWidth: 1 },
-  summaryText: { fontSize: 12 },
+  container: { flex: 1 }, loading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  topBar: { flexDirection: 'row', alignItems: 'center', padding: 10, gap: 8, borderBottomWidth: 1, borderBottomColor: '#e0e0e0' },
+  searchBox: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, borderWidth: 1 },
+  searchInput: { flex: 1, fontSize: 15 }, addBtn: { padding: 4 },
+  summaryBar: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10 },
+  summaryText: { fontSize: 14, fontWeight: '600', color: '#0f3460' },
   empty: { alignItems: 'center', marginTop: 60 },
-  accCard: { borderRadius: 12, borderWidth: 1, padding: 12, marginBottom: 8 },
-  accRow: { alignItems: 'center', gap: 8 },
-  codeBox: { width: 52, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  codeText: { fontSize: 12, fontWeight: '800' },
-  accName: { fontSize: 14, fontWeight: '600' },
-  accGroup: { fontSize: 12, marginTop: 2 },
-  accBalance: { fontSize: 14, fontWeight: '700' },
-  inactiveTag: { fontSize: 11 },
-  deleteBtn: { padding: 6 },
-  codePreview: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: 10, borderWidth: 1, marginBottom: 10 },
-  codePreviewText: { fontSize: 13, fontWeight: '700' },
-  fieldLabel: { fontSize: 12, fontWeight: '600', marginBottom: 4, marginTop: 8 },
-  selectBtn: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12, marginBottom: 4 },
-  pickerList: { borderWidth: 1, borderRadius: 10, marginBottom: 8, overflow: 'hidden' },
-  pickerItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12, borderBottomWidth: 0.5 },
+  card: { borderRadius: 16, padding: 14, marginBottom: 10, borderLeftWidth: 5, elevation: 2 },
+  cardRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  codeBox: { backgroundColor: '#E8EAF6', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
+  codeText: { fontSize: 12, fontWeight: '800', color: '#0f3460' },
+  cardName: { fontSize: 15, fontWeight: '600', textAlign: 'right' },
+  cardSub: { fontSize: 12, textAlign: 'right', marginTop: 2 },
+  balance: { fontSize: 16, fontWeight: '800' },
+  actionRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: 6, marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#e0e0e0' },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#2196F3', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6 },
+  actionText: { color: '#fff', fontSize: 10, fontWeight: '600' },
+  label: { fontSize: 15, fontWeight: '600', marginBottom: 6, marginTop: 14, textAlign: 'right' },
+  input: { borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, borderWidth: 1.5 },
+  pickerList: { borderRadius: 12, borderWidth: 1.5, marginBottom: 10, maxHeight: 200 },
+  pickerItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, borderBottomWidth: 0.5, borderBottomColor: '#e0e0e0' },
+  codePreview: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#E8EAF6', padding: 10, borderRadius: 8, marginBottom: 12 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: { borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '85%' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 18, borderBottomWidth: 1, borderBottomColor: '#e0e0e0' },
+  modalTitle: { fontSize: 19, fontWeight: '700' },
 });

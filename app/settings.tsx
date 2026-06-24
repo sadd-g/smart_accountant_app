@@ -1,229 +1,189 @@
 import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
-import { Stack } from 'expo-router';
-import React, { useState } from 'react';
-import { Alert, Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { Stack, router } from 'expo-router';
+import React, { useState, useEffect } from 'react';
+import { Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View, Switch, TextInput, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import FormField from '../components/FormField';
 import { useApp } from '../context/AppContext';
+import { useDatabase } from '../context/DatabaseContext';
 import { useColors } from '../hooks/useColors';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { I18nManager } from 'react-native';
 
 export default function SettingsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { isRTL, t, settings, profile, updateSettings, updateProfile, toggleLanguage, toggleDarkMode } = useApp();
-  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'printing' | 'backup' | 'advanced' | 'csv'>('profile');
-  const [localProfile, setLocalProfile] = useState({ ...profile });
+  const { t, isRTL, settings, subscription, profile, updateSettings, updateProfile, toggleLanguage } = useApp();
+  const { db } = useDatabase() as any;
+  const [activeTab, setActiveTab] = useState('profile');
+  const [exporting, setExporting] = useState(false);
+  const [localProfile, setLocalProfile] = useState({ ...profile, name: profile.name || '', phone: profile.phone || '', address: profile.address || '', email: profile.email || '', location: profile.location || '' });
   const [saved, setSaved] = useState(false);
+  const [pin, setPin] = useState(settings.pin || '');
+  const [fingerprint, setFingerprint] = useState(settings.fingerprint || false);
+  const [darkMode, setDarkMode] = useState(settings.darkMode || false);
+  const [voiceMode, setVoiceMode] = useState(settings.voiceMode || false);
+  const [noNegativeStock, setNoNegativeStock] = useState(settings.noNegativeStock || false);
+  const [whatsappIntegration, setWhatsappIntegration] = useState(settings.whatsappIntegration || false);
+  const [printHeader, setPrintHeader] = useState(settings.printHeader || 'دفتر المحاسب الذكي');
+  const [printFooter, setPrintFooter] = useState(settings.printFooter || 'شكراً لتعاملكم معنا');
+  const [showDate, setShowDate] = useState(true);
+  const [showBalance, setShowBalance] = useState(true);
+  const [monthlyTarget, setMonthlyTarget] = useState('');
+  const [yearlyTarget, setYearlyTarget] = useState('');
+  const [collectionTarget, setCollectionTarget] = useState('');
 
-  const tabs = [
-    { key: 'profile' as const, labelAr: 'الملف', labelEn: 'Profile', icon: 'person-outline' as const },
-    { key: 'security' as const, labelAr: 'الأمان', labelEn: 'Security', icon: 'shield-outline' as const },
-    { key: 'printing' as const, labelAr: 'الطباعة', labelEn: 'Printing', icon: 'print-outline' as const },
-    { key: 'backup' as const, labelAr: 'النسخ', labelEn: 'Backup', icon: 'cloud-upload-outline' as const },
-    { key: 'advanced' as const, labelAr: 'متقدم', labelEn: 'Advanced', icon: 'settings-outline' as const },
-    { key: 'csv' as const, labelAr: 'CSV', labelEn: 'CSV', icon: 'document-text-outline' as const },
-  ];
+  useEffect(() => {
+    (async () => {
+      setMonthlyTarget(await AsyncStorage.getItem('monthlyTarget') || '');
+      setYearlyTarget(await AsyncStorage.getItem('yearlyTarget') || '');
+      setCollectionTarget(await AsyncStorage.getItem('collectionTarget') || '');
+    })();
+  }, []);
 
-  const handleSave = async () => {
-    if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  const handleSaveProfile = async () => {
     await updateProfile(localProfile);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setSaved(true); setTimeout(() => setSaved(false), 2000);
   };
 
-  const Toggle = ({ value, onToggle, label, desc }: { value: boolean; onToggle: () => void; label: string; desc?: string }) => (
-    <View style={[styles.toggleRow, { borderBottomColor: colors.border, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-      <View style={{ flex: 1 }}>
-        <Text style={[styles.toggleLabel, { color: colors.foreground, textAlign: isRTL ? 'right' : 'left' }]}>{label}</Text>
-        {desc && <Text style={[styles.toggleDesc, { color: colors.mutedForeground, textAlign: isRTL ? 'right' : 'left' }]}>{desc}</Text>}
-      </View>
-      <Switch
-        value={value}
-        onValueChange={onToggle}
-        trackColor={{ false: colors.border, true: colors.primary + '80' }}
-        thumbColor={value ? colors.primary : colors.mutedForeground}
-      />
-    </View>
-  );
+  const handleSaveTargets = async () => {
+    await AsyncStorage.setItem('monthlyTarget', monthlyTarget);
+    await AsyncStorage.setItem('yearlyTarget', yearlyTarget);
+    await AsyncStorage.setItem('collectionTarget', collectionTarget);
+    Alert.alert('✅', 'تم حفظ الأهداف');
+  };
 
-  const ActionBtn = ({ icon, label, color, onPress }: { icon: keyof typeof Ionicons.glyphMap; label: string; color: string; onPress: () => void }) => (
-    <TouchableOpacity style={[styles.actionBtn, { backgroundColor: color + '12', borderColor: color }]} onPress={onPress}>
-      <Ionicons name={icon} size={20} color={color} />
-      <Text style={[styles.actionBtnText, { color }]}>{label}</Text>
-    </TouchableOpacity>
+  const handleExport = async () => {
+    if (!db) { Alert.alert('', 'قاعدة البيانات غير متصلة'); return; }
+    setExporting(true);
+    try {
+      const tables = ['accounts', 'customers', 'suppliers', 'items', 'currencies', 'account_groups', 'cash_boxes', 'banks', 'ewallets', 'journal_entries', 'journal_lines', 'sales_invoices', 'purchase_invoices', 'sequences', 'notifications'];
+      let data: any = { version: 1, date: new Date().toISOString(), app: 'دفتر المحاسب الذكي', data: {} };
+      for (const t of tables) { try { data.data[t] = await db.getAllAsync(`SELECT * FROM ${t}`); } catch(e) {} }
+      const json = JSON.stringify(data, null, 2);
+      await AsyncStorage.setItem('backup_data', json);
+      Alert.alert('✅', 'تم تصدير النسخة الاحتياطية بنجاح\nحجم البيانات: ' + (json.length / 1024).toFixed(1) + ' KB');
+    } catch(e) { Alert.alert('❌', 'فشل التصدير: ' + (e as any)?.message); } finally { setExporting(false); }
+  };
+
+  const handleLogout = () => {
+    Alert.alert('🚪 تسجيل الخروج', 'هل تريد حفظ نسخة احتياطية قبل الخروج؟', [
+      { text: '💾 نسخ احتياطي ثم خروج', onPress: async () => { await handleExport(); await AsyncStorage.removeItem('is_logged_in'); router.replace('/'); } },
+      { text: '🚶 خروج مباشر', style: 'destructive', onPress: async () => { await AsyncStorage.removeItem('is_logged_in'); router.replace('/'); } },
+      { text: 'إلغاء', style: 'cancel' },
+    ]);
+  };
+
+  const tabs = [
+    { key: 'profile', icon: 'person-outline', label: isRTL ? 'الملف' : 'Profile' },
+    { key: 'targets', icon: 'flag-outline', label: isRTL ? 'الأهداف' : 'Targets' },
+    { key: 'security', icon: 'shield-outline', label: isRTL ? 'الأمان' : 'Security' },
+    { key: 'printing', icon: 'print-outline', label: isRTL ? 'الطباعة' : 'Printing' },
+    { key: 'backup', icon: 'cloud-upload-outline', label: isRTL ? 'النسخ' : 'Backup' },
+    { key: 'advanced', icon: 'settings-outline', label: isRTL ? 'متقدم' : 'Advanced' },
+  ];
+
+  const Toggle = ({ label, value, onToggle, desc }: { label: string; value: boolean; onToggle: () => void; desc?: string }) => (
+    <View style={[styles.toggleRow, { borderBottomColor: colors.border }]}>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.toggleLabel, { color: colors.foreground }]}>{label}</Text>
+        {desc && <Text style={[styles.toggleDesc, { color: colors.mutedForeground }]}>{desc}</Text>}
+      </View>
+      <Switch value={value} onValueChange={onToggle} trackColor={{ false: colors.border, true: colors.primary }} thumbColor={value ? colors.primary : colors.mutedForeground} />
+    </View>
   );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Stack.Screen options={{ title: isRTL ? 'الإعدادات' : 'Settings', headerStyle: { backgroundColor: colors.primary }, headerTintColor: '#fff' }} />
+      <Stack.Screen options={{ title: isRTL ? '⚙️ الإعدادات' : '⚙️ Settings', headerStyle: { backgroundColor: colors.primary }, headerTintColor: '#fff' }} />
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.tabBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]} contentContainerStyle={{ paddingHorizontal: 6 }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.tabBar, { backgroundColor: colors.card }]} contentContainerStyle={{ paddingHorizontal: 4 }}>
         {tabs.map(tab => (
           <TouchableOpacity key={tab.key} style={[styles.tab, activeTab === tab.key && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]} onPress={() => setActiveTab(tab.key)}>
-            <Ionicons name={tab.icon} size={16} color={activeTab === tab.key ? colors.primary : colors.mutedForeground} />
-            <Text style={[styles.tabText, { color: activeTab === tab.key ? colors.primary : colors.mutedForeground }]}>
-              {isRTL ? tab.labelAr : tab.labelEn}
-            </Text>
+            <Ionicons name={tab.icon as any} size={16} color={activeTab === tab.key ? colors.primary : colors.mutedForeground} />
+            <Text style={[styles.tabText, { color: activeTab === tab.key ? colors.primary : colors.mutedForeground }]}>{tab.label}</Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 40 }}>
-
-        {/* ── PROFILE ──────────────────────────────── */}
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false}>
         {activeTab === 'profile' && (
           <View>
-            <FormField label={t.settings.name} value={localProfile.name} onChangeText={v => setLocalProfile(p => ({ ...p, name: v }))} />
-            <FormField label={t.settings.phone} value={localProfile.phone} onChangeText={v => setLocalProfile(p => ({ ...p, phone: v }))} keyboardType="phone-pad" />
-            <FormField label={t.settings.address} value={localProfile.address} onChangeText={v => setLocalProfile(p => ({ ...p, address: v }))} multiline />
-            <FormField label={t.settings.email} value={localProfile.email} onChangeText={v => setLocalProfile(p => ({ ...p, email: v }))} keyboardType="email-address" />
-            <FormField label={t.settings.location} value={localProfile.location} onChangeText={v => setLocalProfile(p => ({ ...p, location: v }))} />
-            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleSave}>
-              <Ionicons name={saved ? 'checkmark' : 'save-outline'} size={20} color="#fff" />
-              <Text style={styles.saveBtnText}>{saved ? t.settings.saved : t.settings.save}</Text>
+            <Text style={[styles.label, { color: colors.mutedForeground }]}>{isRTL ? 'الاسم' : 'Name'}</Text>
+            <TextInput style={[styles.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]} value={localProfile.name} onChangeText={v => setLocalProfile(p => ({ ...p, name: v }))} placeholder={isRTL ? 'الاسم' : 'Name'} placeholderTextColor={colors.mutedForeground} textAlign={isRTL ? 'right' : 'left'} />
+            <Text style={[styles.label, { color: colors.mutedForeground }]}>{isRTL ? 'الهاتف' : 'Phone'}</Text>
+            <TextInput style={[styles.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]} value={localProfile.phone} onChangeText={v => setLocalProfile(p => ({ ...p, phone: v }))} placeholder={isRTL ? 'الهاتف' : 'Phone'} placeholderTextColor={colors.mutedForeground} keyboardType="phone-pad" textAlign={isRTL ? 'right' : 'left'} />
+            <Text style={[styles.label, { color: colors.mutedForeground }]}>{isRTL ? 'البريد الإلكتروني' : 'Email'}</Text>
+            <TextInput style={[styles.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]} value={localProfile.email} onChangeText={v => setLocalProfile(p => ({ ...p, email: v }))} placeholder="email@example.com" placeholderTextColor={colors.mutedForeground} keyboardType="email-address" textAlign={isRTL ? 'right' : 'left'} />
+            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleSaveProfile}>
+              <Ionicons name={saved ? 'checkmark-circle' : 'save'} size={20} color="#fff" />
+              <Text style={styles.saveBtnText}>{saved ? (isRTL ? '✅ تم الحفظ' : '✅ Saved') : (isRTL ? '💾 حفظ' : '💾 Save')}</Text>
             </TouchableOpacity>
           </View>
         )}
 
-        {/* ── SECURITY ─────────────────────────────── */}
+        {activeTab === 'targets' && (
+          <View>
+            <View style={[styles.tipCard, { backgroundColor: colors.warning + '15', borderColor: colors.warning }]}>
+              <Ionicons name="flag" size={20} color={colors.warning} />
+              <Text style={[styles.tipText, { color: colors.warning }]}>{isRTL ? 'حدد أهدافك الشهرية والسنوية لتتبع أداء المبيعات' : 'Set your monthly and yearly targets'}</Text>
+            </View>
+            <Text style={[styles.label, { color: colors.mutedForeground }]}>{isRTL ? 'الهدف الشهري' : 'Monthly Target'}</Text>
+            <TextInput style={[styles.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border, fontSize: 22, fontWeight: '800', textAlign: 'center' }]} value={monthlyTarget} onChangeText={setMonthlyTarget} placeholder="0" placeholderTextColor={colors.mutedForeground} keyboardType="numeric" />
+            <Text style={[styles.label, { color: colors.mutedForeground }]}>{isRTL ? 'الهدف السنوي' : 'Yearly Target'}</Text>
+            <TextInput style={[styles.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border, fontSize: 22, fontWeight: '800', textAlign: 'center' }]} value={yearlyTarget} onChangeText={setYearlyTarget} placeholder="0" placeholderTextColor={colors.mutedForeground} keyboardType="numeric" />
+            <Text style={[styles.label, { color: colors.mutedForeground }]}>{isRTL ? 'هدف التحصيلات' : 'Collection Target'}</Text>
+            <TextInput style={[styles.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border, fontSize: 22, fontWeight: '800', textAlign: 'center' }]} value={collectionTarget} onChangeText={setCollectionTarget} placeholder="0" placeholderTextColor={colors.mutedForeground} keyboardType="numeric" />
+            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleSaveTargets}>
+              <Ionicons name="save" size={20} color="#fff" />
+              <Text style={styles.saveBtnText}>{isRTL ? '💾 حفظ الأهداف' : '💾 Save Targets'}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {activeTab === 'security' && (
           <View>
-            <FormField label={t.settings.pin} value={settings.pin} onChangeText={v => updateSettings({ pin: v })} secureTextEntry keyboardType="numeric" maxLength={6} />
-            <Toggle value={settings.fingerprint} onToggle={() => updateSettings({ fingerprint: !settings.fingerprint })} label={t.settings.fingerprint} />
-            <Toggle value={settings.rememberSession} onToggle={() => updateSettings({ rememberSession: !settings.rememberSession })} label={t.settings.rememberSession} />
+            <Text style={[styles.label, { color: colors.mutedForeground }]}>🔐 {isRTL ? 'رمز PIN' : 'PIN Code'}</Text>
+            <TextInput style={[styles.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border, fontSize: 22, fontWeight: '800', textAlign: 'center' }]} value={pin} onChangeText={v => { setPin(v); updateSettings({ pin: v }); }} placeholder="****" placeholderTextColor={colors.mutedForeground} keyboardType="numeric" maxLength={6} secureTextEntry />
+            <Toggle label={isRTL ? '👆 تفعيل البصمة' : '👆 Enable Fingerprint'} value={fingerprint} onToggle={() => { setFingerprint(!fingerprint); updateSettings({ fingerprint: !fingerprint }); }} />
           </View>
         )}
 
-        {/* ── PRINTING ─────────────────────────────── */}
         {activeTab === 'printing' && (
           <View>
-            <FormField label={t.settings.printHeader} value={settings.printHeader} onChangeText={v => updateSettings({ printHeader: v })} />
-            <FormField label={t.settings.printFooter} value={settings.printFooter} onChangeText={v => updateSettings({ printFooter: v })} />
-            <Toggle value={settings.showDate} onToggle={() => updateSettings({ showDate: !settings.showDate })} label={t.settings.showDate} />
-            <Toggle value={settings.showBalance} onToggle={() => updateSettings({ showBalance: !settings.showBalance })} label={t.settings.showBalance} />
-            <Toggle value={settings.shortFormat} onToggle={() => updateSettings({ shortFormat: !settings.shortFormat })} label={t.settings.shortFormat} />
-            <Toggle value={settings.showTransactionNumber} onToggle={() => updateSettings({ showTransactionNumber: !settings.showTransactionNumber })}
-              label={isRTL ? 'إظهار رقم العملية' : 'Show Transaction Number'}
-              desc={isRTL ? 'يظهر رقم العملية في كل سجل' : 'Show transaction number on each record'} />
+            <Text style={[styles.label, { color: colors.mutedForeground }]}>{isRTL ? 'رأس الصفحة' : 'Header'}</Text>
+            <TextInput style={[styles.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]} value={printHeader} onChangeText={v => { setPrintHeader(v); updateSettings({ printHeader: v }); }} placeholderTextColor={colors.mutedForeground} textAlign={isRTL ? 'right' : 'left'} />
+            <Text style={[styles.label, { color: colors.mutedForeground }]}>{isRTL ? 'تذييل الصفحة' : 'Footer'}</Text>
+            <TextInput style={[styles.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]} value={printFooter} onChangeText={v => { setPrintFooter(v); updateSettings({ printFooter: v }); }} placeholderTextColor={colors.mutedForeground} textAlign={isRTL ? 'right' : 'left'} />
+            <Toggle label={isRTL ? 'إظهار التاريخ' : 'Show Date'} value={showDate} onToggle={() => { setShowDate(!showDate); updateSettings({ showDate: !showDate }); }} />
+            <Toggle label={isRTL ? 'إظهار الأرصدة' : 'Show Balance'} value={showBalance} onToggle={() => { setShowBalance(!showBalance); updateSettings({ showBalance: !showBalance }); }} />
           </View>
         )}
 
-        {/* ── BACKUP ───────────────────────────────── */}
         {activeTab === 'backup' && (
           <View>
-            <Toggle value={settings.dailyBackup} onToggle={() => updateSettings({ dailyBackup: !settings.dailyBackup })}
-              label={isRTL ? 'حفظ يومي تلقائي' : 'Auto Daily Backup'}
-              desc={isRTL ? 'يحفظ النسخة الاحتياطية تلقائياً كل يوم' : 'Automatically saves a backup every day'} />
-
-            <ActionBtn icon="cloud-upload-outline" label={isRTL ? 'نسخ احتياطي الآن' : 'Backup Now'} color={colors.primary}
-              onPress={() => Alert.alert(isRTL ? 'نسخ احتياطي' : 'Backup', isRTL ? 'جاري النسخ...' : 'Backing up...')} />
-            <ActionBtn icon="share-social-outline" label={isRTL ? 'مشاركة النسخة' : 'Share Backup'} color={colors.section3}
-              onPress={() => Alert.alert(isRTL ? 'مشاركة' : 'Share', isRTL ? 'جاري المشاركة...' : 'Sharing...')} />
-            <ActionBtn icon="cloud-download-outline" label={isRTL ? 'استعادة البيانات' : 'Restore Data'} color={colors.warning}
-              onPress={() => Alert.alert(isRTL ? 'استعادة' : 'Restore', isRTL ? 'اختر ملف النسخ الاحتياطي' : 'Choose backup file')} />
-            <ActionBtn icon="logo-google" label={isRTL ? 'ربط بجوجل درايف' : 'Google Drive'} color={colors.success}
-              onPress={() => Alert.alert('Google Drive', isRTL ? 'ربط جوجل درايف قريباً' : 'Google Drive integration coming soon')} />
-
-            <View style={[styles.infoBox, { backgroundColor: colors.info + '10', borderColor: colors.info }]}>
-              <Ionicons name="information-circle-outline" size={16} color={colors.info} />
-              <Text style={[styles.infoText, { color: colors.info, textAlign: isRTL ? 'right' : 'left' }]}>
-                {isRTL
-                  ? 'يتم حفظ البيانات تلقائياً في قاعدة البيانات المحلية. استخدم النسخ الاحتياطي للحفاظ على البيانات عند تغيير الجهاز.'
-                  : 'Data is automatically saved to the local database. Use backup to preserve data when changing devices.'}
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {/* ── ADVANCED ─────────────────────────────── */}
-        {activeTab === 'advanced' && (
-          <View>
-            <Toggle value={settings.darkMode} onToggle={toggleDarkMode} label={t.settings.darkMode} />
-
-            <View style={[styles.toggleRow, { borderBottomColor: colors.border, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-              <Text style={[styles.toggleLabel, { color: colors.foreground }]}>{t.settings.language}</Text>
-              <TouchableOpacity style={[styles.langBtn, { backgroundColor: colors.primary + '12', borderColor: colors.primary }]} onPress={toggleLanguage}>
-                <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 13 }}>{isRTL ? 'English' : 'العربية'}</Text>
-              </TouchableOpacity>
-            </View>
-
-            <Toggle value={settings.voiceMode} onToggle={() => updateSettings({ voiceMode: !settings.voiceMode })}
-              label={isRTL ? 'المساعد الصوتي' : 'Voice Assistant'}
-              desc={isRTL ? 'تفعيل إدخال العمليات بالصوت' : 'Enable voice-based transaction entry'} />
-            <Toggle value={settings.showCurrency} onToggle={() => updateSettings({ showCurrency: !settings.showCurrency })}
-              label={isRTL ? 'إظهار العملات' : 'Show Currencies'}
-              desc={isRTL ? 'إظهار رمز العملة مع كل مبلغ' : 'Show currency symbol with amounts'} />
-            <Toggle value={settings.noNegativeStock} onToggle={() => updateSettings({ noNegativeStock: !settings.noNegativeStock })}
-              label={isRTL ? 'إيقاف البيع بالسالب' : 'Prevent Negative Stock'}
-              desc={isRTL ? 'لا يسمح بالبيع أكثر من المتوفر بالمخزون' : 'Block sales when stock goes negative'} />
-            <Toggle value={settings.showTransactionNumber} onToggle={() => updateSettings({ showTransactionNumber: !settings.showTransactionNumber })}
-              label={isRTL ? 'إظهار رقم العملية' : 'Show Transaction Number'} />
-            <Toggle value={settings.whatsappIntegration} onToggle={() => updateSettings({ whatsappIntegration: !settings.whatsappIntegration })}
-              label={isRTL ? 'إرسال كشف واتساب' : 'Send Statement via WhatsApp'}
-              desc={isRTL ? 'إرسال الكشوفات والفواتير عبر واتساب' : 'Send statements and invoices via WhatsApp'} />
-
-            <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.destructive + '12', borderColor: colors.destructive, marginTop: 8 }]}
-              onPress={() => Alert.alert(isRTL ? 'إغلاق السنة' : 'Year End', isRTL ? 'هل تريد إغلاق السنة المحاسبية؟' : 'Close fiscal year?', [{ text: isRTL ? 'إلغاء' : 'Cancel', style: 'cancel' }, { text: isRTL ? 'إغلاق' : 'Close', style: 'destructive', onPress: () => {} }])}>
-              <Ionicons name="calendar-outline" size={20} color={colors.destructive} />
-              <Text style={[styles.actionBtnText, { color: colors.destructive }]}>{t.settings.yearEndClosing}</Text>
+            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.primary }]} onPress={handleExport} disabled={exporting}>
+              {exporting ? <ActivityIndicator color="#fff" /> : <Ionicons name="cloud-upload" size={22} color="#fff" />}
+              <Text style={styles.actionText}>{exporting ? (isRTL ? 'جاري التصدير...' : 'Exporting...') : (isRTL ? '📤 تصدير نسخة احتياطية' : '📤 Export Backup')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#1565C0' }]} onPress={() => Alert.alert('📥', isRTL ? 'الاستيراد قيد التطوير' : 'Import under development')}>
+              <Ionicons name="cloud-download" size={22} color="#fff" />
+              <Text style={styles.actionText}>{isRTL ? '📥 استيراد نسخة احتياطية' : '📥 Import Backup'}</Text>
             </TouchableOpacity>
           </View>
         )}
 
-        {/* ── CSV IMPORT/EXPORT ─────────────────────── */}
-        {activeTab === 'csv' && (
+        {activeTab === 'advanced' && (
           <View>
-            <Text style={[styles.sectionHeading, { color: colors.foreground, textAlign: isRTL ? 'right' : 'left' }]}>
-              {isRTL ? 'تصدير البيانات' : 'Export Data'}
-            </Text>
-            {[
-              { label: isRTL ? 'تصدير العملاء CSV' : 'Export Customers CSV', icon: 'people-outline' as const, color: colors.section3 },
-              { label: isRTL ? 'تصدير الموردين CSV' : 'Export Suppliers CSV', icon: 'business-outline' as const, color: colors.section2 },
-              { label: isRTL ? 'تصدير الأصناف CSV' : 'Export Items CSV', icon: 'cube-outline' as const, color: colors.section5 },
-              { label: isRTL ? 'تصدير الفواتير CSV' : 'Export Invoices CSV', icon: 'receipt-outline' as const, color: colors.section4 },
-              { label: isRTL ? 'تصدير الحسابات CSV' : 'Export Accounts CSV', icon: 'book-outline' as const, color: colors.section1 },
-              { label: isRTL ? 'تصدير كل الجداول' : 'Export All Tables', icon: 'download-outline' as const, color: colors.primary },
-            ].map((item, i) => (
-              <ActionBtn key={i} icon={item.icon} label={item.label} color={item.color} onPress={() => Alert.alert(isRTL ? 'تصدير' : 'Export', isRTL ? `جاري تصدير ${item.label}...` : `Exporting ${item.label}...`)} />
-            ))}
+            <Toggle label={isRTL ? '🌙 الوضع الداكن' : '🌙 Dark Mode'} value={darkMode} onToggle={() => setDarkMode(!darkMode)} />
+            <Toggle label={isRTL ? '🎤 الأوامر الصوتية' : '🎤 Voice Commands'} value={voiceMode} onToggle={() => setVoiceMode(!voiceMode)} />
+            <Toggle label={isRTL ? '🚫 منع البيع بالسالب' : '🚫 No Negative Stock'} value={noNegativeStock} onToggle={() => setNoNegativeStock(!noNegativeStock)} desc={isRTL ? 'يمنع البيع إذا كانت الكمية غير متوفرة' : 'Prevent sales when stock is negative'} />
+            <Toggle label={isRTL ? '💬 تكامل واتساب' : '💬 WhatsApp'} value={whatsappIntegration} onToggle={() => setWhatsappIntegration(!whatsappIntegration)} />
 
-            <View style={[styles.divider, { backgroundColor: colors.border, marginVertical: 16 }]} />
-
-            <Text style={[styles.sectionHeading, { color: colors.foreground, textAlign: isRTL ? 'right' : 'left' }]}>
-              {isRTL ? 'استيراد البيانات' : 'Import Data'}
-            </Text>
-
-            <View style={[styles.infoBox, { backgroundColor: colors.warning + '10', borderColor: colors.warning, marginBottom: 12 }]}>
-              <Ionicons name="warning-outline" size={16} color={colors.warning} />
-              <Text style={[styles.infoText, { color: colors.warning, textAlign: isRTL ? 'right' : 'left' }]}>
-                {isRTL
-                  ? 'الاستيراد يضيف البيانات فقط ولا يحذف الموجود. افتح ملف CSV في Excel باستخدام UTF-8.'
-                  : 'Import only adds new records — it does not delete existing data. Open CSV files in Excel using UTF-8 encoding.'}
-              </Text>
-            </View>
-
-            {[
-              { label: isRTL ? 'استيراد العملاء' : 'Import Customers', icon: 'people-outline' as const, color: colors.section3 },
-              { label: isRTL ? 'استيراد الموردين' : 'Import Suppliers', icon: 'business-outline' as const, color: colors.section2 },
-              { label: isRTL ? 'استيراد الأصناف' : 'Import Items', icon: 'cube-outline' as const, color: colors.section5 },
-            ].map((item, i) => (
-              <ActionBtn key={i} icon={item.icon} label={item.label} color={item.color} onPress={() => Alert.alert(isRTL ? 'استيراد' : 'Import', isRTL ? 'اختر ملف CSV للاستيراد' : 'Choose CSV file to import')} />
-            ))}
-
-            <ActionBtn icon="cloud-download-outline" label={isRTL ? 'تنزيل قالب CSV' : 'Download CSV Template'} color={colors.info}
-              onPress={() => Alert.alert(isRTL ? 'القالب' : 'Template', isRTL ? 'يتم تنزيل القالب...' : 'Downloading template...')} />
-
-            <View style={[styles.infoBox, { backgroundColor: colors.info + '10', borderColor: colors.info, marginTop: 8 }]}>
-              <Ionicons name="information-circle-outline" size={16} color={colors.info} />
-              <Text style={[styles.infoText, { color: colors.info, textAlign: isRTL ? 'right' : 'left' }]}>
-                {isRTL
-                  ? 'نصيحة: قم بتنزيل القالب أولاً، ثم امله بالبيانات واستورده. تأكد من حفظ الملف بترميز UTF-8 لدعم اللغة العربية.'
-                  : 'Tip: Download the template first, fill it with your data, then import. Save the file with UTF-8 encoding for Arabic support.'}
-              </Text>
-            </View>
+            <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+              <Ionicons name="log-out" size={22} color="#C62828" />
+              <Text style={styles.logoutText}>{isRTL ? '🚪 تسجيل الخروج' : '🚪 Logout'}</Text>
+            </TouchableOpacity>
+            <Text style={styles.version}>Smart Accountant v1.0.0 | © 2024</Text>
           </View>
         )}
       </ScrollView>
@@ -233,19 +193,21 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  tabBar: { borderBottomWidth: 1 },
-  tab: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 13 },
-  tabText: { fontSize: 12, fontWeight: '600' },
-  toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1 },
-  toggleLabel: { fontSize: 15, fontWeight: '500' },
-  toggleDesc: { fontSize: 12, marginTop: 2 },
-  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16, borderRadius: 14, marginTop: 12 },
+  tabBar: { borderBottomWidth: 1, borderBottomColor: '#e0e0e0', maxHeight: 50 },
+  tab: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 14 },
+  tabText: { fontSize: 13, fontWeight: '600' },
+  label: { fontSize: 15, fontWeight: '600', marginBottom: 6, marginTop: 14, textAlign: 'right' },
+  input: { borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, borderWidth: 1.5 },
+  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 16, borderRadius: 14, marginTop: 16 },
   saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 15, borderRadius: 14, borderWidth: 1.5, marginBottom: 10 },
-  actionBtnText: { fontSize: 14, fontWeight: '600' },
-  langBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5 },
-  sectionHeading: { fontSize: 15, fontWeight: '700', marginBottom: 12 },
-  divider: { height: 1, marginVertical: 8 },
-  infoBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: 12, borderWidth: 1 },
-  infoText: { flex: 1, fontSize: 12, lineHeight: 18 },
+  toggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1 },
+  toggleLabel: { fontSize: 16, fontWeight: '600', textAlign: 'right' },
+  toggleDesc: { fontSize: 12, textAlign: 'right', marginTop: 2 },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 16, borderRadius: 14, marginTop: 8 },
+  actionText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  tipCard: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 12, marginBottom: 12, borderWidth: 1 },
+  tipText: { flex: 1, fontSize: 13, textAlign: 'right' },
+  logoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#fff', padding: 16, borderRadius: 14, borderWidth: 2, borderColor: '#FFCDD2', marginTop: 24 },
+  logoutText: { color: '#C62828', fontSize: 16, fontWeight: '700' },
+  version: { textAlign: 'center', color: '#aaa', marginTop: 16, fontSize: 12 },
 });
