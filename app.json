@@ -4,30 +4,59 @@
     "slug": "smart-accountant",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "backgroundColor": "#0A1128"
+      "backgroundColor": "#0A1128",
+      "resizeMode": "contain"
     },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.smartaccountant.app"
+      "bundleIdentifier": "com.smartaccountant.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "للسماح برفع صور المنتجات",
+        "NSCameraUsageDescription": "للسماح بتصوير المنتجات",
+        "NSMicrophoneUsageDescription": "للسماح باستخدام الأوامر الصوتية"
+      }
     },
     "android": {
       "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0A1128"
       },
-      "package": "com.smartaccountant.app"
+      "package": "com.smartaccountant.app",
+      "versionCode": 1,
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
+      "favicon": "./assets/favicon.png",
       "bundler": "metro"
     },
     "plugins": [
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-font"
     ],
     "extra": {
       "eas": {
-        "projectId": "a006db61-d5b5-48ad-a92f-e0cd3c37ab9b"
+        "projectId": "your-project-id"
       }
+    },
+    "owner": "sadpasheer",
+    "updates": {
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/your-project-id"
+    },
+    "runtimeVersion": {
+      "policy": "sdkVersion"
     }
   }
 }
