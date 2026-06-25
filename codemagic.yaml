@@ -8,14 +8,8 @@ workflows:
     scripts:
       - name: Install
         script: npm install --legacy-peer-deps
-      
-      - name: Prebuild Android
-        script: npx expo prebuild --platform android --clean
-      
-      - name: Fix Android Resources
-        script: |
-          find android -name "*.xml" -type f -exec sed -i 's/@drawable\/splashscreen_logo/@color\/splashscreen_background/g' {} \;
-      
+      - name: Prebuild
+        script: npx expo prebuild --platform android
       - name: Build APK
         script: |
           cd android
@@ -23,6 +17,5 @@ workflows:
           chmod +x gradlew
           ./gradlew assembleRelease
           cd ..
-    
     artifacts:
       - android/app/build/outputs/apk/release/*.apk
