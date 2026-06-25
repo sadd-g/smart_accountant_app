@@ -9,31 +9,18 @@ workflows:
       - name: Install
         script: npm install --legacy-peer-deps
       
+      - name: Prebuild Android
+        script: npx expo prebuild --platform android --clean
+      
       - name: Fix Android Resources
         script: |
-          mkdir -p android/app/src/main/res/drawable
-          mkdir -p android/app/src/main/res/values
-          
-          cat > android/app/src/main/res/values/colors.xml << 'COLORS'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <color name="splashscreen_background">#0A1128</color>
-          </resources>
-          COLORS
-          
-          cat > android/app/src/main/res/drawable/splashscreen.xml << 'SPLASH'
-          <?xml version="1.0" encoding="utf-8"?>
-          <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-              <item android:drawable="@color/splashscreen_background"/>
-          </layer-list>
-          SPLASH
-          
           find android -name "*.xml" -type f -exec sed -i 's/@drawable\/splashscreen_logo/@color\/splashscreen_background/g' {} \;
       
       - name: Build APK
         script: |
           cd android
           echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+          chmod +x gradlew
           ./gradlew assembleRelease
           cd ..
     
