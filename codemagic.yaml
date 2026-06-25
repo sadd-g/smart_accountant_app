@@ -5,12 +5,12 @@ workflows:
     max_build_duration: 60
     environment:
       node: 20.0.0
+      groups:
+        - expo
     scripts:
       - name: Install
         script: npm install --legacy-peer-deps
       - name: Build
-        script: |
-          echo "بدء البناء..."
-          EXPO_TOKEN=$EXPO_TOKEN npx eas-cli build --platform android --profile preview --non-interactive
+        script: npx eas-cli build --platform android --profile preview --non-interactive
     artifacts:
       - build/**/*.apk
