@@ -1,8 +1,22 @@
 #!/usr/bin/env bash
 
-echo "🚀 بدء بناء تطبيق الأندرويد..."
+echo "🚀 بدء بناء التطبيق..."
 echo "================================"
 
-npx eas-cli build --platform android --profile preview --non-interactive
+# تنظيف
+rm -rf node_modules .expo android
 
-echo "✅ انتهى البناء!"
+# تثبيت
+npm install --legacy-peer-deps
+
+# بناء الأندرويد
+npx expo prebuild --platform android
+
+# بناء APK
+cd android
+echo "sdk.dir=$ANDROID_HOME" > local.properties
+./gradlew assembleRelease
+cd ..
+
+echo "✅ تم البناء!"
+echo "📱 الملف: android/app/build/outputs/apk/release/app-release.apk"
