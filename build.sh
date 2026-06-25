@@ -5,4 +5,4 @@ echo "================================"
 
 npx eas-cli build --platform android --profile preview --non-interactive
 
-echo "✅ اكتمل البناء!"
+echo "✅ انتهى البناء!"
