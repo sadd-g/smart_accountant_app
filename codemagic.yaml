@@ -5,12 +5,14 @@ workflows:
     max_build_duration: 60
     environment:
       node: 20.0.0
-      groups:
-        - expo_credentials
+      vars:
+        EXPO_TOKEN: $EXPO_TOKEN
     scripts:
       - name: Install dependencies
-        script: yarn install 2>/dev/null || npm install --legacy-peer-deps
+        script: |
+          npm install --legacy-peer-deps 2>/dev/null || yarn install
       - name: Build Android APK
-        script: npx eas-cli build --platform android --profile preview --non-interactive
+        script: |
+          npx eas-cli build --platform android --profile preview --non-interactive
     artifacts:
       - build/**/*.apk
