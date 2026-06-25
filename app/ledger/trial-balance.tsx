@@ -1,58 +1,131 @@
-import { Ionicons } from '@expo/vector-icons';
-import { Stack } from 'expo-router';
-import React from 'react';
-import { FlatList, Platform, StyleSheet, Text, View } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useApp } from '../../context/AppContext';
-import { useDatabase } from '../../context/DatabaseContext';
-import { useColors } from '../../hooks/useColors';
 
 export default function TrialBalanceScreen() {
-  const colors = useColors();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { isRTL } = useApp();
-  const { accounts } = useDatabase();
-  const color = colors.section1;
 
-  const totalDebits = accounts.filter(a => a.balance >= 0).reduce((s, a) => s + a.balance, 0);
-  const totalCredits = accounts.filter(a => a.balance < 0).reduce((s, a) => s + Math.abs(a.balance), 0);
+  // بيانات تجريبية فارغة
+  const trialData: any[] = [];
+
+  const totalDebit = trialData.reduce((sum, item) => sum + item.debit, 0);
+  const totalCredit = trialData.reduce((sum, item) => sum + item.credit, 0);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Stack.Screen options={{ title: isRTL ? 'ميزان المراجعة' : 'Trial Balance', headerStyle: { backgroundColor: color }, headerTintColor: '#fff' }} />
-      <View style={[styles.totalsBar, { backgroundColor: color, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-        <View style={styles.totalItem}><Text style={styles.totalLabel}>{isRTL ? 'مجموع المدين' : 'Total Debit'}</Text><Text style={styles.totalValue}>{totalDebits.toFixed(2)}</Text></View>
-        <View style={styles.totalItem}><Text style={styles.totalLabel}>{isRTL ? 'مجموع الدائن' : 'Total Credit'}</Text><Text style={styles.totalValue}>{totalCredits.toFixed(2)}</Text></View>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="light-content" />
+      
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={styles.backBtn}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>ميزان المراجعة</Text>
+        <View style={{ width: 40 }} />
       </View>
-      <FlatList
-        data={accounts}
-        keyExtractor={a => a.id}
-        scrollEnabled={accounts.length > 0}
-        contentContainerStyle={{ padding: 12, paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 20 }}
-        renderItem={({ item }) => (
-          <View style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-            <Text style={[styles.accCode, { color: colors.mutedForeground }]}>{item.code}</Text>
-            <Text style={[styles.accName, { color: colors.foreground }]}>{isRTL ? item.nameAr : item.name}</Text>
-            <Text style={[styles.debit, { color: item.balance >= 0 ? colors.section3 : 'transparent' }]}>{item.balance >= 0 ? item.balance.toFixed(2) : '—'}</Text>
-            <Text style={[styles.credit, { color: item.balance < 0 ? colors.destructive : 'transparent' }]}>{item.balance < 0 ? Math.abs(item.balance).toFixed(2) : '—'}</Text>
+
+      <ScrollView style={styles.content}>
+        {/* المجاميع */}
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>إجمالي مدين</Text>
+            <Text style={[styles.summaryValue, { color: '#10B981' }]}>
+              {totalDebit.toLocaleString()} ﷼
+            </Text>
+          </View>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>إجمالي دائن</Text>
+            <Text style={[styles.summaryValue, { color: '#EF4444' }]}>
+              {totalCredit.toLocaleString()} ﷼
+            </Text>
+          </View>
+        </View>
+
+        {/* جدول ميزان المراجعة */}
+        {trialData.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyIcon}>📊</Text>
+            <Text style={styles.emptyTitle}>لا توجد بيانات</Text>
+            <Text style={styles.emptyDesc}>
+              قم بإضافة قيود يومية ليظهر ميزان المراجعة
+            </Text>
+            <TouchableOpacity 
+              style={styles.addButton}
+              onPress={() => router.push('/ledger/journal-entry')}
+            >
+              <Text style={styles.addButtonText}>+ إضافة قيد يومية</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.table}>
+            <View style={[styles.tableRow, styles.tableHeader]}>
+              <Text style={[styles.tableCell, styles.headerText, { flex: 2 }]}>الحساب</Text>
+              <Text style={[styles.tableCell, styles.headerText]}>مدين</Text>
+              <Text style={[styles.tableCell, styles.headerText]}>دائن</Text>
+            </View>
+            {trialData.map((item, index) => (
+              <View key={index} style={styles.tableRow}>
+                <Text style={[styles.tableCell, { flex: 2, color: '#FFF' }]}>{item.name}</Text>
+                <Text style={[styles.tableCell, { color: '#10B981' }]}>{item.debit.toLocaleString()}</Text>
+                <Text style={[styles.tableCell, { color: '#EF4444' }]}>{item.credit.toLocaleString()}</Text>
+              </View>
+            ))}
           </View>
         )}
-        ListEmptyComponent={<View style={styles.empty}><Ionicons name="scale-outline" size={40} color={colors.mutedForeground} /><Text style={{ color: colors.mutedForeground, marginTop: 8 }}>{isRTL ? 'لا توجد حسابات' : 'No accounts'}</Text></View>}
-      />
+
+        <View style={{ height: 40 }} />
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  totalsBar: { justifyContent: 'space-around', padding: 12 },
-  totalItem: { alignItems: 'center' },
-  totalLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 11 },
-  totalValue: { color: '#fff', fontSize: 16, fontWeight: '800' },
-  row: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 10, borderWidth: 1, marginBottom: 6, gap: 8 },
-  accCode: { width: 50, fontSize: 12 },
-  accName: { flex: 1, fontSize: 13, fontWeight: '500' },
-  debit: { width: 70, textAlign: 'right', fontSize: 13, fontWeight: '600' },
-  credit: { width: 70, textAlign: 'right', fontSize: 13, fontWeight: '600' },
-  empty: { alignItems: 'center', marginTop: 60 },
+  container: { flex: 1, backgroundColor: '#0A1128' },
+  header: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 20, paddingVertical: 16,
+  },
+  backBtn: { fontSize: 28, color: '#D4AF37', fontWeight: 'bold' },
+  title: { fontSize: 20, fontWeight: 'bold', color: '#FFFFFF' },
+  content: { flex: 1, padding: 16 },
+  summaryCard: {
+    backgroundColor: '#16213E', borderRadius: 16, padding: 20,
+    flexDirection: 'row', justifyContent: 'space-around',
+    marginBottom: 20, borderWidth: 1, borderColor: '#2a3550',
+  },
+  summaryItem: { alignItems: 'center' },
+  summaryLabel: { color: '#94a3b8', fontSize: 14, marginBottom: 8 },
+  summaryValue: { fontSize: 22, fontWeight: 'bold' },
+  emptyState: {
+    flex: 1, justifyContent: 'center', alignItems: 'center',
+    paddingVertical: 60,
+  },
+  emptyIcon: { fontSize: 64, marginBottom: 16 },
+  emptyTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: 'bold', marginBottom: 8 },
+  emptyDesc: {
+    color: '#94a3b8', fontSize: 14, textAlign: 'center',
+    marginBottom: 24, paddingHorizontal: 40,
+  },
+  addButton: {
+    backgroundColor: '#D4AF37' + '20', borderRadius: 12,
+    paddingVertical: 14, paddingHorizontal: 24,
+    borderWidth: 1, borderColor: '#D4AF37' + '40',
+  },
+  addButtonText: { color: '#D4AF37', fontSize: 16, fontWeight: 'bold' },
+  table: {
+    backgroundColor: '#16213E', borderRadius: 16,
+    overflow: 'hidden', borderWidth: 1, borderColor: '#2a3550',
+  },
+  tableRow: {
+    flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#2a3550',
+  },
+  tableHeader: {
+    backgroundColor: '#1a2240',
+  },
+  tableCell: {
+    flex: 1, padding: 14, fontSize: 14, color: '#94a3b8', textAlign: 'center',
+  },
+  headerText: {
+    color: '#D4AF37', fontWeight: 'bold', fontSize: 14,
+  },
 });

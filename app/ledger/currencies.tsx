@@ -1,197 +1,195 @@
-import { Ionicons } from '@expo/vector-icons';
-import { Stack, router } from 'expo-router';
-import React, { useState, useEffect } from 'react';
-import { Alert, FlatList, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View, Modal, ScrollView } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, StatusBar, Alert, Modal, ScrollView } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useApp } from '../../context/AppContext';
-import { useDatabase } from '../../context/DatabaseContext';
-import { useColors } from '../../hooks/useColors';
-import { formatNumber, genId } from '../../db/database';
+import { useLocalTable } from '../../hooks/useLocalStore';
+
+interface Currency {
+  id: string;
+  code: string;
+  name: string;
+  symbol: string;
+  rate: number;
+  isDefault: boolean;
+}
 
 export default function CurrenciesScreen() {
-  const colors = useColors();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { isRTL } = useApp();
-  const { db } = useDatabase() as any;
-  const [data, setData] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editId, setEditId] = useState<string | null>(null);
-  const [form, setForm] = useState({ code: '', name: '', nameAr: '', symbol: '', rate: '', isDefault: false });
+  const { data: currencies, add, remove, update } = useLocalTable<Currency>('currencies');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [selectedCurrency, setSelectedCurrency] = useState<Currency | null>(null);
+  const [formData, setFormData] = useState({ code: '', name: '', symbol: '', rate: '1', isDefault: false });
 
-  useEffect(() => { loadData(); }, [db]);
-
-  const loadData = async () => {
-    if (!db) return;
-    try {
-      const rows = await db.getAllAsync("SELECT * FROM currencies WHERE is_active=1 ORDER BY is_default DESC, code");
-      setData(rows || []);
-    } catch(e) { console.error(e); } finally { setLoading(false); }
-  };
-
-  const openAdd = () => { setEditId(null); setForm({ code: '', name: '', nameAr: '', symbol: '', rate: '', isDefault: false }); setModalVisible(true); };
-  const openEdit = (c: any) => { setEditId(c.id); setForm({ code: c.code, name: c.name, nameAr: c.name_ar, symbol: c.symbol, rate: c.rate?.toString() || '', isDefault: c.is_default === 1 }); setModalVisible(true); };
+  const filtered = currencies.filter((c: Currency) => 
+    c.name?.includes(searchQuery) || c.code?.includes(searchQuery)
+  );
 
   const handleSave = async () => {
-    if (!form.code || !form.nameAr) return Alert.alert('', 'الكود والاسم مطلوبان');
-    if (!db) return Alert.alert('', 'قاعدة البيانات غير متصلة');
+    if (!formData.code || !formData.name) { Alert.alert('خطأ', 'الرجاء إدخال الكود والاسم'); return; }
     
-    try {
-      if (form.isDefault) {
-        await db.runAsync("UPDATE currencies SET is_default = 0");
-      }
-      
-      if (editId) {
-        await db.runAsync(
-          "UPDATE currencies SET code=?, name=?, name_ar=?, symbol=?, rate=?, is_default=? WHERE id=?",
-          [form.code, form.name, form.nameAr, form.symbol, parseFloat(form.rate) || 1, form.isDefault ? 1 : 0, editId]
-        );
-        Alert.alert('✅', 'تم تعديل العملة');
-      } else {
-        await db.runAsync(
-          "INSERT INTO currencies(id,code,name,name_ar,symbol,rate,is_default) VALUES(?,?,?,?,?,?,?)",
-          [genId(), form.code, form.name, form.nameAr, form.symbol, parseFloat(form.rate) || 1, form.isDefault ? 1 : 0]
-        );
-        Alert.alert('✅', 'تم إضافة العملة');
-      }
-      setModalVisible(false);
-      await loadData();
-    } catch(e: any) {
-      Alert.alert('❌', e.message || 'فشل الحفظ');
+    if (editMode && selectedCurrency) {
+      await update(selectedCurrency.id, { ...formData, rate: parseFloat(formData.rate) || 1 });
+    } else {
+      await add({ ...formData, rate: parseFloat(formData.rate) || 1 });
     }
+    setShowModal(false);
+    resetForm();
   };
 
-  const handleDelete = async (c: any) => {
-    Alert.alert('🗑️ حذف', `حذف "${c.name_ar}"؟`, [
+  const handleDelete = (currency: Currency) => {
+    if (currency.isDefault) { Alert.alert('تنبيه', 'لا يمكن حذف العملة الأساسية'); return; }
+    Alert.alert('تأكيد الحذف', `هل تريد حذف "${currency.name}"؟`, [
       { text: 'إلغاء', style: 'cancel' },
-      { text: 'حذف', style: 'destructive', onPress: async () => {
-        if (db) { await db.runAsync("UPDATE currencies SET is_active=0 WHERE id=?", [c.id]); await loadData(); }
-      }},
+      { text: 'حذف', style: 'destructive', onPress: () => remove(currency.id) },
     ]);
   };
 
-  const handleToggleDefault = async (c: any) => {
-    if (!db) return;
-    await db.runAsync("UPDATE currencies SET is_default = 0");
-    await db.runAsync("UPDATE currencies SET is_default = 1 WHERE id=?", [c.id]);
-    await loadData();
-    Alert.alert('✅', `تم تعيين ${c.name_ar} كعملة أساسية`);
+  const resetForm = () => {
+    setFormData({ code: '', name: '', symbol: '', rate: '1', isDefault: false });
+    setSelectedCurrency(null);
+    setEditMode(false);
   };
 
-  const currencyColors: any = { YER: '#4CAF50', USD: '#2196F3', SAR: '#FF9800', default: '#e8b86d' };
-
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Stack.Screen options={{ title: '💱 العملات', headerStyle: { backgroundColor: '#0a0a1a' }, headerTintColor: '#e8b86d' }} />
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="light-content" />
       
-      <View style={[styles.topBar, { backgroundColor: colors.card }]}>
-        <Text style={[styles.titleText, { color: colors.foreground }]}>💰 أسعار الصرف والعملات</Text>
-        <TouchableOpacity style={styles.addBtn} onPress={openAdd}>
-          <Ionicons name="add-circle" size={40} color="#e8b86d" />
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={styles.backBtn}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>العملات</Text>
+        <TouchableOpacity style={styles.addBtn} onPress={() => { resetForm(); setShowModal(true); }}>
+          <Text style={styles.addBtnText}>+</Text>
         </TouchableOpacity>
       </View>
 
-      <FlatList
-        data={data}
-        keyExtractor={(c: any) => c.id}
-        contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 40 }}
-        ListEmptyComponent={<View style={styles.empty}><Ionicons name="cash-outline" size={60} color="#ccc" /><Text style={{ color: '#888', marginTop: 12 }}>لا توجد عملات</Text></View>}
-        renderItem={({ item }) => {
-          const cColor = currencyColors[item.code] || currencyColors.default;
-          return (
-            <TouchableOpacity style={[styles.card, { borderLeftColor: cColor }]} onPress={() => openEdit(item)} activeOpacity={0.7}>
-              <View style={styles.cardContent}>
-                <View style={[styles.symbolCircle, { backgroundColor: cColor + '20', borderColor: cColor }]}>
-                  <Text style={[styles.symbolText, { color: cColor }]}>{item.symbol}</Text>
+      <View style={styles.controlBar}>
+        <TextInput style={styles.searchInput} placeholder="🔍 بحث عن عملة..." placeholderTextColor="#94a3b8" value={searchQuery} onChangeText={setSearchQuery} />
+        <TouchableOpacity style={styles.printBtn}>
+          <Text style={styles.printBtnText}>🖨️</Text>
+        </TouchableOpacity>
+      </View>
+
+      {filtered.length === 0 ? (
+        <View style={styles.empty}>
+          <Text style={styles.emptyIcon}>💱</Text>
+          <Text style={styles.emptyText}>لا توجد عملات</Text>
+          <Text style={styles.emptySubtext}>اضغط + لإضافة عملة جديدة</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filtered}
+          keyExtractor={(item: Currency) => item.id}
+          renderItem={({ item }: { item: Currency }) => (
+            <TouchableOpacity style={[styles.currencyCard, item.isDefault && styles.defaultCard]} onPress={() => { setFormData({ code: item.code, name: item.name, symbol: item.symbol, rate: item.rate?.toString(), isDefault: item.isDefault }); setSelectedCurrency(item); setEditMode(true); setShowModal(true); }} onLongPress={() => handleDelete(item)}>
+              <View style={styles.currencyHeader}>
+                <View style={styles.symbolCircle}>
+                  <Text style={styles.symbolText}>{item.symbol}</Text>
                 </View>
-                <View style={styles.cardInfo}>
-                  <Text style={[styles.cardName, { color: colors.foreground }]}>{item.name_ar}</Text>
-                  <Text style={[styles.cardCode, { color: colors.mutedForeground }]}>{item.code} • {item.name}</Text>
-                  {item.is_default === 1 && <Text style={styles.defaultBadge}>⭐ العملة الأساسية</Text>}
+                <View style={styles.currencyInfo}>
+                  <View style={styles.nameRow}>
+                    <Text style={styles.currencyName}>{item.name}</Text>
+                    {item.isDefault && <View style={styles.defaultBadge}><Text style={styles.defaultText}>أساسي</Text></View>}
+                  </View>
+                  <Text style={styles.currencyCode}>{item.code}</Text>
                 </View>
-                <View style={styles.rateSection}>
-                  <Text style={[styles.rateValue, { color: cColor }]}>{formatNumber(item.rate)}</Text>
-                  <Text style={[styles.rateLabel, { color: colors.mutedForeground }]}>سعر الصرف</Text>
-                </View>
-                {/* أزرار التحكم */}
-                <View style={{ flexDirection: 'column', gap: 4 }}>
-                  <TouchableOpacity onPress={() => openEdit(item)} style={styles.iconBtn}>
-                    <Ionicons name="create-outline" size={18} color="#2196F3" />
-                  </TouchableOpacity>
-                  {item.is_default !== 1 && (
-                    <TouchableOpacity onPress={() => handleToggleDefault(item)} style={styles.iconBtn}>
-                      <Ionicons name="star-outline" size={18} color="#FF9800" />
-                    </TouchableOpacity>
-                  )}
-                  <TouchableOpacity onPress={() => handleDelete(item)} style={styles.iconBtn}>
-                    <Ionicons name="trash-outline" size={18} color="#C62828" />
-                  </TouchableOpacity>
+                <View style={styles.rateContainer}>
+                  <Text style={styles.rateValue}>1 = {item.rate?.toLocaleString()} ﷼</Text>
                 </View>
               </View>
             </TouchableOpacity>
-          );
-        }}
-      />
+          )}
+          contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
+        />
+      )}
 
-      <Modal visible={modalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}><View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setModalVisible(false)}><Text style={{ color: '#C62828', fontSize: 16 }}>إلغاء</Text></TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: colors.foreground }]}>{editId ? '✏️ تعديل عملة' : '➕ إضافة عملة'}</Text>
-            <TouchableOpacity onPress={handleSave}><Text style={{ color: '#2E7D32', fontSize: 16, fontWeight: '700' }}>حفظ</Text></TouchableOpacity>
+      <Modal visible={showModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{editMode ? 'تعديل عملة' : 'إضافة عملة جديدة'}</Text>
+              <TouchableOpacity onPress={() => setShowModal(false)}>
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalBody}>
+              <Text style={styles.fieldLabel}>كود العملة *</Text>
+              <TextInput style={styles.fieldInput} value={formData.code} onChangeText={(v) => setFormData({ ...formData, code: v.toUpperCase() })} placeholder="مثال: USD" placeholderTextColor="#666" autoCapitalize="characters" maxLength={4} />
+
+              <Text style={styles.fieldLabel}>اسم العملة *</Text>
+              <TextInput style={styles.fieldInput} value={formData.name} onChangeText={(v) => setFormData({ ...formData, name: v })} placeholder="مثال: دولار أمريكي" placeholderTextColor="#666" />
+
+              <Text style={styles.fieldLabel}>الرمز</Text>
+              <TextInput style={styles.fieldInput} value={formData.symbol} onChangeText={(v) => setFormData({ ...formData, symbol: v })} placeholder="مثال: $" placeholderTextColor="#666" />
+
+              <Text style={styles.fieldLabel}>سعر الصرف (مقابل الريال اليمني)</Text>
+              <TextInput style={styles.fieldInput} value={formData.rate} onChangeText={(v) => setFormData({ ...formData, rate: v })} keyboardType="numeric" placeholder="1" placeholderTextColor="#666" />
+
+              <TouchableOpacity style={styles.defaultToggle} onPress={() => setFormData({ ...formData, isDefault: !formData.isDefault })}>
+                <Text style={styles.defaultToggleText}>{formData.isDefault ? '✅' : '⬜'} عملة أساسية</Text>
+              </TouchableOpacity>
+
+              <View style={styles.modalActions}>
+                <TouchableOpacity style={styles.saveModalBtn} onPress={handleSave}>
+                  <Text style={styles.saveModalBtnText}>💾 حفظ</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.cancelModalBtn} onPress={() => setShowModal(false)}>
+                  <Text style={styles.cancelModalBtnText}>إلغاء</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
-          <ScrollView style={{ padding: 16 }}>
-            <Text style={[styles.label, { color: colors.mutedForeground }]}>الكود *</Text>
-            <TextInput style={[styles.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]} value={form.code} onChangeText={v => setForm(f => ({ ...f, code: v }))} placeholder="YER" placeholderTextColor={colors.mutedForeground} />
-            
-            <Text style={[styles.label, { color: colors.mutedForeground }]}>الاسم العربي *</Text>
-            <TextInput style={[styles.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]} value={form.nameAr} onChangeText={v => setForm(f => ({ ...f, nameAr: v }))} placeholder="ريال يمني" placeholderTextColor={colors.mutedForeground} textAlign="right" />
-            
-            <Text style={[styles.label, { color: colors.mutedForeground }]}>الاسم الإنجليزي</Text>
-            <TextInput style={[styles.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]} value={form.name} onChangeText={v => setForm(f => ({ ...f, name: v }))} placeholder="Yemeni Rial" placeholderTextColor={colors.mutedForeground} />
-            
-            <Text style={[styles.label, { color: colors.mutedForeground }]}>الرمز</Text>
-            <TextInput style={[styles.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]} value={form.symbol} onChangeText={v => setForm(f => ({ ...f, symbol: v }))} placeholder="ر.ي" placeholderTextColor={colors.mutedForeground} textAlign="right" />
-            
-            <Text style={[styles.label, { color: colors.mutedForeground }]}>سعر الصرف</Text>
-            <TextInput style={[styles.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border, fontSize: 22, fontWeight: '800', textAlign: 'center' }]} value={form.rate} onChangeText={v => setForm(f => ({ ...f, rate: v }))} placeholder="1" placeholderTextColor={colors.mutedForeground} keyboardType="numeric" />
-            
-            <TouchableOpacity style={styles.checkRow} onPress={() => setForm(f => ({ ...f, isDefault: !f.isDefault }))}>
-              <Ionicons name={form.isDefault ? 'checkbox' : 'square-outline'} size={24} color="#e8b86d" />
-              <Text style={[styles.checkText, { color: colors.foreground }]}>عملة أساسية</Text>
-            </TouchableOpacity>
-            <View style={{ height: 20 }} />
-          </ScrollView>
-        </View></View>
+        </View>
       </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#e0e0e0' },
-  titleText: { fontSize: 18, fontWeight: '700' },
-  addBtn: { padding: 4 },
-  empty: { alignItems: 'center', marginTop: 80 },
-  card: { backgroundColor: '#fff', borderRadius: 16, padding: 14, marginBottom: 10, borderLeftWidth: 5, elevation: 2 },
-  cardContent: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  symbolCircle: { width: 50, height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center', borderWidth: 2 },
-  symbolText: { fontSize: 20, fontWeight: '900' },
-  cardInfo: { flex: 1 },
-  cardName: { fontSize: 15, fontWeight: '700', textAlign: 'right' },
-  cardCode: { fontSize: 11, textAlign: 'right', marginTop: 2 },
-  defaultBadge: { fontSize: 10, color: '#e8b86d', marginTop: 4, textAlign: 'right' },
-  rateSection: { alignItems: 'center' },
-  rateValue: { fontSize: 20, fontWeight: '800' },
-  rateLabel: { fontSize: 10, marginTop: 2 },
-  iconBtn: { padding: 6, backgroundColor: '#f0f0f0', borderRadius: 6 },
-  label: { fontSize: 15, fontWeight: '600', marginBottom: 6, marginTop: 14, textAlign: 'right' },
-  input: { borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, borderWidth: 1.5 },
-  checkRow: { flexDirection: 'row', alignItems: 'center', marginTop: 16, gap: 8 },
-  checkText: { fontSize: 15 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContent: { borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '80%' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 18, borderBottomWidth: 1, borderBottomColor: '#e0e0e0' },
-  modalTitle: { fontSize: 19, fontWeight: '700' },
+  container: { flex: 1, backgroundColor: '#0A1128' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
+  backBtn: { fontSize: 24, color: '#D4AF37', fontWeight: 'bold' },
+  title: { fontSize: 18, fontWeight: 'bold', color: '#FFFFFF' },
+  addBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#D4AF37' + '20', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#D4AF37' },
+  addBtnText: { fontSize: 20, color: '#D4AF37', fontWeight: 'bold' },
+  controlBar: { flexDirection: 'row', paddingHorizontal: 16, marginBottom: 12, gap: 8 },
+  searchInput: { flex: 1, backgroundColor: '#16213E', borderRadius: 10, padding: 10, color: '#FFFFFF', borderWidth: 1, borderColor: '#2a3550', textAlign: 'right', fontSize: 14 },
+  printBtn: { backgroundColor: '#16213E', borderRadius: 10, padding: 10, justifyContent: 'center', borderWidth: 1, borderColor: '#2a3550' },
+  printBtnText: { fontSize: 18 },
+  empty: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  emptyIcon: { fontSize: 48, marginBottom: 12 },
+  emptyText: { color: '#FFFFFF', fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
+  emptySubtext: { color: '#94a3b8', fontSize: 12 },
+  currencyCard: { backgroundColor: '#16213E', borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#2a3550' },
+  defaultCard: { borderColor: '#D4AF37', borderWidth: 2 },
+  currencyHeader: { flexDirection: 'row', alignItems: 'center' },
+  symbolCircle: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#D4AF37' + '20', justifyContent: 'center', alignItems: 'center', marginRight: 10 },
+  symbolText: { fontSize: 18, color: '#D4AF37', fontWeight: 'bold' },
+  currencyInfo: { flex: 1 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 2 },
+  currencyName: { color: '#FFFFFF', fontSize: 15, fontWeight: 'bold', marginRight: 6 },
+  defaultBadge: { backgroundColor: '#D4AF37' + '30', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  defaultText: { color: '#D4AF37', fontSize: 9, fontWeight: 'bold' },
+  currencyCode: { color: '#94a3b8', fontSize: 12 },
+  rateContainer: {},
+  rateValue: { color: '#10B981', fontSize: 13, fontWeight: 'bold' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: '#16213E', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '80%' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#2a3550' },
+  modalTitle: { color: '#D4AF37', fontSize: 18, fontWeight: 'bold' },
+  modalClose: { color: '#EF4444', fontSize: 22, fontWeight: 'bold' },
+  modalBody: { padding: 16 },
+  fieldLabel: { color: '#94a3b8', fontSize: 13, marginBottom: 6, marginTop: 12 },
+  fieldInput: { backgroundColor: '#0A1128', borderRadius: 10, padding: 12, color: '#FFFFFF', borderWidth: 1, borderColor: '#2a3550', fontSize: 14 },
+  defaultToggle: { paddingVertical: 12, marginTop: 16, alignItems: 'center' },
+  defaultToggleText: { color: '#FFFFFF', fontSize: 15 },
+  modalActions: { flexDirection: 'row', gap: 10, marginTop: 24 },
+  saveModalBtn: { flex: 1, backgroundColor: '#D4AF37', borderRadius: 12, padding: 14, alignItems: 'center' },
+  saveModalBtnText: { color: '#0A1128', fontSize: 16, fontWeight: 'bold' },
+  cancelModalBtn: { flex: 1, backgroundColor: '#2a3550', borderRadius: 12, padding: 14, alignItems: 'center' },
+  cancelModalBtnText: { color: '#FFFFFF', fontSize: 16 },
 });

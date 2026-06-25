@@ -1,127 +1,140 @@
-import { Ionicons } from '@expo/vector-icons';
-import { Stack, router } from 'expo-router';
-import React, { useMemo, useState, useEffect } from 'react';
-import { Alert, FlatList, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View, Modal, ScrollView } from 'react-native';
-import { useApp } from '../../context/AppContext';
-import { useDatabase } from '../../context/DatabaseContext';
-import { useColors } from '../../hooks/useColors';
-import { formatNumber, genId } from '../../db/database';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, StatusBar } from 'react-native';
+import { useState } from 'react';
+import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-export default function CashBoxesScreen() {
-  const colors = useColors();
-  const { isRTL } = useApp();
-  const { db } = useDatabase() as any;
-  const [data, setData] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editId, setEditId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: '', nameAr: '', code: '', currencyId: 'c1', openingBalance: '' });
+interface EWallet {
+  id: string;
+  name: string;
+  provider: string;
+  phone: string;
+  balance: number;
+}
 
-  useEffect(() => { if (db) loadData(); }, [db]);
+export default function EWalletsScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  
+  const [wallets, setWallets] = useState<EWallet[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const loadData = async () => {
-    if (!db) return;
-    try { const rows = await db.getAllAsync("SELECT * FROM ewallets WHERE is_active=1 ORDER BY code"); setData(rows || []); } catch(e) {} finally { setLoading(false); }
+  const providers = ['محفظة يمن موبايل', 'محفظة سبأفون', 'محفظة يمن فون', 'محفظة عدن نت'];
+
+  const addWallet = () => {
+    const newWallet: EWallet = {
+      id: Date.now().toString(),
+      name: 'محفظة جديدة ' + (wallets.length + 1),
+      provider: providers[Math.floor(Math.random() * providers.length)],
+      phone: '',
+      balance: 0,
+    };
+    setWallets([...wallets, newWallet]);
   };
 
-  const filtered = useMemo(() => {
-    if (!search.trim()) return data;
-    const q = search.trim().toLowerCase();
-    return data.filter((cb: any) => (cb.code||'').includes(q) || (cb.name_ar||'').includes(q));
-  }, [data, search]);
-
-  const openAdd = () => { setEditId(null); setForm({ name: '', nameAr: '', code: '', currencyId: 'c1', openingBalance: '' }); setModalVisible(true); };
-  const openEdit = (cb: any) => { setEditId(cb.id); setForm({ name: cb.name, nameAr: cb.name_ar, code: cb.code, currencyId: cb.currency_id||'c1', openingBalance: cb.opening_balance?.toString() || '' }); setModalVisible(true); };
-
-  const handleSave = async () => {
-    if (!form.nameAr) return Alert.alert('', 'الاسم مطلوب');
-    if (!db) return;
-    try {
-      const ob = parseFloat(form.openingBalance) || 0;
-      const code = form.code || 'EW-' + (data.length + 1).toString().padStart(3, '0');
-      if (editId) {
-        await db.runAsync("UPDATE ewallets SET name=?, name_ar=?, code=?, currency_id=?, opening_balance=? WHERE id=?", [form.name, form.nameAr, code, form.currencyId, ob, editId]);
-        Alert.alert('✅', 'تم التعديل');
-      } else {
-        await db.runAsync("INSERT INTO ewallets(id,code,name,name_ar,account_id,currency_id,opening_balance,current_balance) VALUES(?,?,?,?,?,?,?,?)", [genId(), code, form.name, form.nameAr, 'a1', form.currencyId, ob, ob]);
-        Alert.alert('✅', 'تم الإضافة');
-      }
-      setModalVisible(false); await loadData();
-    } catch(e: any) { Alert.alert('❌', e.message); }
-  };
-
-  const handleDelete = async (cb: any) => {
-    Alert.alert('🗑️', `حذف "${cb.name_ar}"؟`, [{ text: 'إلغاء', style: 'cancel' }, { text: 'حذف', style: 'destructive', onPress: async () => { if (db) { await db.runAsync("UPDATE ewallets SET is_active=0 WHERE id=?", [cb.id]); await loadData(); } } }]);
-  };
-
-  if (loading) return <View style={styles.loading}><Text style={{ color: '#666' }}>جاري التحميل...</Text></View>;
+  const filteredWallets = wallets.filter(w => w.name.includes(searchQuery));
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Stack.Screen options={{ title: '🏦 المحافظ', headerStyle: { backgroundColor: '#6A1B9A' }, headerTintColor: '#fff' }} />
-      <View style={[styles.topBar, { backgroundColor: colors.card }]}>
-        <View style={[styles.searchBox, { backgroundColor: colors.background, borderColor: colors.border }]}>
-          <Ionicons name="search" size={20} color={colors.mutedForeground} />
-          <TextInput style={[styles.searchInput, { color: colors.foreground }]} value={search} onChangeText={setSearch} placeholder="🔍 بحث..." placeholderTextColor={colors.mutedForeground} textAlign="right" />
-        </View>
-        <TouchableOpacity style={styles.addBtn} onPress={openAdd}><Ionicons name="add-circle" size={40} color="#6A1B9A" /></TouchableOpacity>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="light-content" />
+      
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={styles.backBtn}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>المحافظ الإلكترونية</Text>
+        <TouchableOpacity onPress={addWallet} style={styles.addBtn}>
+          <Text style={styles.addBtnText}>+</Text>
+        </TouchableOpacity>
       </View>
-      <FlatList data={filtered} keyExtractor={(cb: any) => cb.id} contentContainerStyle={{ padding: 12 }}
-        ListEmptyComponent={<View style={styles.empty}><Ionicons name="briefcase-outline" size={50} color="#ccc" /><Text style={{ color: '#888', marginTop: 12 }}>لا توجد صناديق</Text></View>}
-        renderItem={({ item }) => (
-          <View style={[styles.card, { backgroundColor: colors.card, borderLeftColor: '#6A1B9A' }]}>
-            <TouchableOpacity style={{ flex: 1 }} onPress={() => openEdit(item)}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <Ionicons name="wallet-outline" size={22} color="#6A1B9A" />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.cardName, { color: colors.foreground }]}>{item.name_ar}</Text>
-                  <Text style={[styles.cardCode, { color: colors.mutedForeground }]}>{item.code}</Text>
+
+      <TextInput
+        style={styles.searchInput}
+        placeholder="🔍 بحث عن محفظة..."
+        placeholderTextColor="#94a3b8"
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+      />
+
+      <View style={styles.summaryCard}>
+        <Text style={styles.summaryLabel}>إجمالي أرصدة المحافظ</Text>
+        <Text style={styles.summaryValue}>
+          {wallets.reduce((sum, w) => sum + w.balance, 0).toLocaleString()} ﷼
+        </Text>
+      </View>
+
+      {filteredWallets.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyIcon}>📱</Text>
+          <Text style={styles.emptyTitle}>لا توجد محافظ</Text>
+          <Text style={styles.emptyDesc}>اضغط + لإضافة محفظة جديدة</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredWallets}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <TouchableOpacity style={styles.walletCard}>
+              <View style={styles.walletHeader}>
+                <Text style={styles.walletIcon}>📱</Text>
+                <View style={styles.walletInfo}>
+                  <Text style={styles.walletName}>{item.name}</Text>
+                  <Text style={styles.provider}>{item.provider}</Text>
+                  <Text style={styles.phone}>{item.phone || 'لا يوجد رقم'}</Text>
                 </View>
-                <Text style={[styles.balance, { color: '#6A1B9A' }]}>{formatNumber(item.current_balance || item.opening_balance || 0)}</Text>
+                <Text style={[styles.balance, { color: item.balance >= 0 ? '#10B981' : '#EF4444' }]}>
+                  {item.balance.toLocaleString()} ﷼
+                </Text>
               </View>
             </TouchableOpacity>
-            <View style={styles.actionRow}>
-              <TouchableOpacity style={styles.actionBtn} onPress={() => openEdit(item)}><Ionicons name="create-outline" size={14} color="#fff" /><Text style={styles.actionText}>تعديل</Text></TouchableOpacity>
-              <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#C62828' }]} onPress={() => handleDelete(item)}><Ionicons name="trash-outline" size={14} color="#fff" /><Text style={styles.actionText}>حذف</Text></TouchableOpacity>
-            </View>
-          </View>
-        )}
-      />
-      <Modal visible={modalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}><View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-          <View style={styles.modalHeader}><TouchableOpacity onPress={() => setModalVisible(false)}><Text style={{ color: '#C62828', fontSize: 16 }}>إلغاء</Text></TouchableOpacity><Text style={[styles.modalTitle, { color: colors.foreground }]}>{editId ? '✏️ تعديل' : '➕ إضافة صندوق'}</Text><TouchableOpacity onPress={handleSave}><Text style={{ color: '#2E7D32', fontSize: 16, fontWeight: '700' }}>حفظ</Text></TouchableOpacity></View>
-          <ScrollView style={{ padding: 16 }}>
-            <Text style={[styles.label, { color: colors.mutedForeground }]}>الاسم *</Text>
-            <TextInput style={[styles.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]} value={form.nameAr} onChangeText={v => setForm(f => ({ ...f, nameAr: v }))} placeholder="اسم الصندوق" placeholderTextColor={colors.mutedForeground} textAlign="right" />
-            <Text style={[styles.label, { color: colors.mutedForeground }]}>الكود</Text>
-            <TextInput style={[styles.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border }]} value={form.code} onChangeText={v => setForm(f => ({ ...f, code: v }))} placeholder="EW-001" placeholderTextColor={colors.mutedForeground} />
-            <Text style={[styles.label, { color: colors.mutedForeground }]}>💰 الرصيد الافتتاحي</Text>
-            <TextInput style={[styles.input, { backgroundColor: colors.card, color: colors.foreground, borderColor: colors.border, fontSize: 20, fontWeight: '700', textAlign: 'center' }]} value={form.openingBalance} onChangeText={v => setForm(f => ({ ...f, openingBalance: v }))} placeholder="0" placeholderTextColor={colors.mutedForeground} keyboardType="numeric" />
-          </ScrollView>
-        </View></View>
-      </Modal>
+          )}
+          contentContainerStyle={{ paddingBottom: 32 }}
+        />
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 }, loading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  topBar: { flexDirection: 'row', alignItems: 'center', padding: 10, gap: 8, borderBottomWidth: 1, borderBottomColor: '#e0e0e0' },
-  searchBox: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, borderWidth: 1 },
-  searchInput: { flex: 1, fontSize: 15 }, addBtn: { padding: 4 },
-  empty: { alignItems: 'center', marginTop: 60 },
-  card: { borderRadius: 16, padding: 14, marginBottom: 10, borderLeftWidth: 5, elevation: 2 },
-  cardName: { fontSize: 15, fontWeight: '600', textAlign: 'right' },
-  cardCode: { fontSize: 12, textAlign: 'right', marginTop: 2 },
-  balance: { fontSize: 18, fontWeight: '800' },
-  actionRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: 6, marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#e0e0e0' },
-  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#2196F3', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6 },
-  actionText: { color: '#fff', fontSize: 10, fontWeight: '600' },
-  label: { fontSize: 15, fontWeight: '600', marginBottom: 6, marginTop: 14, textAlign: 'right' },
-  input: { borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, borderWidth: 1.5 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContent: { borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '80%' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 18, borderBottomWidth: 1, borderBottomColor: '#e0e0e0' },
-  modalTitle: { fontSize: 19, fontWeight: '700' },
+  container: { flex: 1, backgroundColor: '#0A1128' },
+  header: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 20, paddingVertical: 16,
+  },
+  backBtn: { fontSize: 28, color: '#D4AF37', fontWeight: 'bold' },
+  title: { fontSize: 20, fontWeight: 'bold', color: '#FFFFFF' },
+  addBtn: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: '#D4AF37' + '20', justifyContent: 'center', alignItems: 'center',
+  },
+  addBtnText: { fontSize: 24, color: '#D4AF37', fontWeight: 'bold' },
+  searchInput: {
+    marginHorizontal: 20, marginBottom: 16, padding: 14,
+    backgroundColor: '#16213E', borderRadius: 12, color: '#FFFFFF',
+    borderWidth: 1, borderColor: '#2a3550', textAlign: 'right',
+  },
+  summaryCard: {
+    marginHorizontal: 20, marginBottom: 16, padding: 20,
+    backgroundColor: '#16213E', borderRadius: 16,
+    alignItems: 'center', borderWidth: 1, borderColor: '#2a3550',
+  },
+  summaryLabel: { color: '#94a3b8', fontSize: 14, marginBottom: 8 },
+  summaryValue: { color: '#D4AF37', fontSize: 28, fontWeight: 'bold' },
+  emptyState: {
+    flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 60,
+  },
+  emptyIcon: { fontSize: 64, marginBottom: 16 },
+  emptyTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: 'bold', marginBottom: 8 },
+  emptyDesc: { color: '#94a3b8', fontSize: 14 },
+  walletCard: {
+    marginHorizontal: 20, marginBottom: 10, padding: 16,
+    backgroundColor: '#16213E', borderRadius: 16,
+    borderWidth: 1, borderColor: '#2a3550',
+  },
+  walletHeader: { flexDirection: 'row', alignItems: 'center' },
+  walletIcon: { fontSize: 32, marginRight: 12 },
+  walletInfo: { flex: 1 },
+  walletName: { color: '#FFFFFF', fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
+  provider: { color: '#D4AF37', fontSize: 12, marginBottom: 2 },
+  phone: { color: '#94a3b8', fontSize: 12 },
+  balance: { fontSize: 18, fontWeight: 'bold' },
 });

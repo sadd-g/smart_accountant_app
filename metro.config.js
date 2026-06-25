@@ -1,8 +1,7 @@
-const { getDefaultConfig } = require("expo/metro-config");
+const { getDefaultConfig } = require('expo/metro-config');
 
 const config = getDefaultConfig(__dirname);
 
-// Add WASM support for expo-sqlite on web
 config.resolver.assetExts.push('wasm');
 
 module.exports = config;

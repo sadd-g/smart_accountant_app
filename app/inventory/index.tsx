@@ -1,74 +1,62 @@
-import { Ionicons } from '@expo/vector-icons';
-import { router, Stack } from 'expo-router';
-import React from 'react';
-import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useApp } from '../../context/AppContext';
-import { useColors } from '../../hooks/useColors';
 
-interface MenuItem { labelAr: string; labelEn: string; icon: keyof typeof Ionicons.glyphMap; route: string; category: 'masters' | 'operations' | 'reports'; }
-
-const ITEMS: MenuItem[] = [
-  { labelAr: 'الموردون', labelEn: 'Suppliers', icon: 'people-outline', route: '/inventory/suppliers', category: 'masters' },
-  { labelAr: 'المستودعات', labelEn: 'Warehouses', icon: 'business-outline', route: '/inventory/warehouses', category: 'masters' },
-  { labelAr: 'الأصناف', labelEn: 'Items', icon: 'cube-outline', route: '/inventory/items', category: 'masters' },
-  { labelAr: 'وحدات الأصناف', labelEn: 'Item Units', icon: 'resize-outline', route: '/inventory/units', category: 'masters' },
-  { labelAr: 'الفئات', labelEn: 'Categories', icon: 'grid-outline', route: '/inventory/categories', category: 'masters' },
-  { labelAr: 'الماركات', labelEn: 'Brands', icon: 'pricetag-outline', route: '/inventory/brands', category: 'masters' },
-  { labelAr: 'فاتورة مشتريات', labelEn: 'Purchase Invoice', icon: 'receipt-outline', route: '/inventory/purchase-invoice', category: 'operations' },
-  { labelAr: 'مرتجع مشتريات', labelEn: 'Purchase Return', icon: 'return-up-back-outline', route: '/inventory/purchase-return', category: 'operations' },
-  { labelAr: 'صرف مخزون', labelEn: 'Inventory Issue', icon: 'arrow-up-outline', route: '/inventory/inventory-issue', category: 'operations' },
-  { labelAr: 'استلام مخزون', labelEn: 'Inventory Receipt', icon: 'arrow-down-outline', route: '/inventory/inventory-receipt', category: 'operations' },
-  { labelAr: 'تحويل مستودع', labelEn: 'Warehouse Transfer', icon: 'swap-horizontal-outline', route: '/inventory/warehouse-transfer', category: 'operations' },
-  { labelAr: 'جرد مخزون', labelEn: 'Stock Count', icon: 'list-outline', route: '/inventory/stock-count', category: 'operations' },
-  { labelAr: 'تسوية مخزون', labelEn: 'Stock Adjustment', icon: 'options-outline', route: '/inventory/stock-adjustment', category: 'operations' },
-  { labelAr: 'كميات المخزون', labelEn: 'Inventory Quantities', icon: 'stats-chart-outline', route: '/inventory/qty-report', category: 'reports' },
-  { labelAr: 'تكاليف المخزون', labelEn: 'Inventory Costs', icon: 'cash-outline', route: '/inventory/cost-report', category: 'reports' },
-  { labelAr: 'حركة الأصناف', labelEn: 'Item Movement', icon: 'git-compare-outline', route: '/inventory/item-movement', category: 'reports' },
-  { labelAr: 'حركة الموردين', labelEn: 'Supplier Movement', icon: 'people-outline', route: '/inventory/supplier-movement', category: 'reports' },
-  { labelAr: 'الأصناف بطيئة الحركة', labelEn: 'Slow Moving Items', icon: 'hourglass-outline', route: '/inventory/slow-moving', category: 'reports' },
-  { labelAr: 'الأصناف المنتهية', labelEn: 'Expired Items', icon: 'warning-outline', route: '/inventory/expired', category: 'reports' },
-];
-
-export default function InventoryIndex() {
-  const colors = useColors();
+export default function InventoryIndexScreen() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { isRTL, t } = useApp();
-  const color = colors.section2;
 
-  const masters = ITEMS.filter(m => m.category === 'masters');
-  const operations = ITEMS.filter(m => m.category === 'operations');
-  const reports = ITEMS.filter(m => m.category === 'reports');
-
-  const renderItem = (item: MenuItem) => (
-    <TouchableOpacity key={item.route} style={[styles.item, { backgroundColor: colors.card, borderColor: colors.border, flexDirection: isRTL ? 'row-reverse' : 'row' }]} onPress={() => router.push(item.route as never)} activeOpacity={0.7}>
-      <View style={[styles.iconWrap, { backgroundColor: color + '18' }]}><Ionicons name={item.icon} size={20} color={color} /></View>
-      <Text style={[styles.itemLabel, { color: colors.foreground, marginLeft: isRTL ? 0 : 12, marginRight: isRTL ? 12 : 0 }]}>{isRTL ? item.labelAr : item.labelEn}</Text>
-      <Ionicons name={isRTL ? 'chevron-back' : 'chevron-forward'} size={16} color={colors.mutedForeground} />
-    </TouchableOpacity>
-  );
+  const menuItems = [
+    { icon: '🏪', label: 'الموردين', route: '/inventory/suppliers', color: '#D4AF37' },
+    { icon: '🏭', label: 'المستودعات', route: '/inventory/warehouses', color: '#3B82F6' },
+    { icon: '📦', label: 'الأصناف', route: '/inventory/items', color: '#10B981' },
+    { icon: '📋', label: 'فاتورة مشتريات', route: '/inventory/purchase-invoice', color: '#7C3AED' },
+    { icon: '📐', label: 'وحدات القياس', route: '/inventory/units', color: '#F59E0B' },
+    { icon: '🏷️', label: 'الفئات', route: '/inventory/categories', color: '#EF4444' },
+    { icon: '⭐', label: 'الماركات', route: '/inventory/brands', color: '#3B82F6' },
+    { icon: '🔄', label: 'مرتجع مشتريات', route: '/inventory/purchase-return', color: '#10B981' },
+    { icon: '📊', label: 'تقرير الكميات', route: '/inventory/qty-report', color: '#D4AF37' },
+    { icon: '💰', label: 'تقرير التكاليف', route: '/inventory/cost-report', color: '#7C3AED' },
+    { icon: '🔍', label: 'حركة الأصناف', route: '/inventory/item-movement', color: '#F59E0B' },
+    { icon: '⚠️', label: 'أصناف بطيئة', route: '/inventory/slow-moving', color: '#EF4444' },
+  ];
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Stack.Screen options={{ title: isRTL ? 'المشتريات والمخزون' : 'Purchases & Inventory', headerStyle: { backgroundColor: color }, headerTintColor: '#fff' }} />
-      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 16 }}>
-        {[['masters', masters], ['operations', operations], ['reports', reports]].map(([key, items]) => (
-          <View key={key as string}>
-            <Text style={[styles.groupLabel, { color: color, textAlign: isRTL ? 'right' : 'left' }]}>
-              {key === 'masters' ? (isRTL ? t.common.masters : 'Masters') : key === 'operations' ? (isRTL ? t.common.operations : 'Operations') : (isRTL ? t.common.reports : 'Reports')}
-            </Text>
-            {(items as MenuItem[]).map(renderItem)}
-          </View>
-        ))}
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="light-content" />
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={styles.backBtn}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>المخزون والمشتريات</Text>
+        <View style={{ width: 40 }} />
+      </View>
+
+      <ScrollView style={styles.content}>
+        <View style={styles.grid}>
+          {menuItems.map((item, index) => (
+            <TouchableOpacity key={index} style={styles.card} onPress={() => router.push(item.route as any)}>
+              <View style={[styles.iconCircle, { backgroundColor: item.color + '20' }]}>
+                <Text style={styles.icon}>{item.icon}</Text>
+              </View>
+              <Text style={styles.label}>{item.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  groupLabel: { fontSize: 12, fontWeight: '700', marginTop: 20, marginBottom: 8, paddingHorizontal: 16, textTransform: 'uppercase', letterSpacing: 0.5 },
-  item: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, marginHorizontal: 12, marginBottom: 6, borderRadius: 12, borderWidth: 1 },
-  iconWrap: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  itemLabel: { flex: 1, fontSize: 15, fontWeight: '500' },
+  container: { flex: 1, backgroundColor: '#0A1128' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16 },
+  backBtn: { fontSize: 28, color: '#D4AF37', fontWeight: 'bold' },
+  title: { fontSize: 20, fontWeight: 'bold', color: '#FFFFFF' },
+  content: { flex: 1, padding: 16 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  card: { width: '30%', backgroundColor: '#16213E', borderRadius: 16, padding: 16, marginBottom: 12, alignItems: 'center', borderWidth: 1, borderColor: '#2a3550' },
+  iconCircle: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
+  icon: { fontSize: 22 },
+  label: { fontSize: 11, color: '#FFFFFF', textAlign: 'center', fontWeight: '600' },
 });
