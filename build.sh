@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 
-echo "🚀 بدء تثبيت التبعيات باستخدام yarn..."
-yarn install --frozen-lockfile 2>/dev/null || yarn install
+echo "🚀 بدء بناء تطبيق الأندرويد..."
+echo "================================"
 
-echo "✅ تم التثبيت بنجاح!"
+npx eas-cli build --platform android --profile preview --non-interactive
+
+echo "✅ اكتمل البناء!"
