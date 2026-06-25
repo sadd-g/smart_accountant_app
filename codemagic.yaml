@@ -5,16 +5,12 @@ workflows:
     max_build_duration: 60
     environment:
       node: 20.0.0
-      vars:
-        EXPO_PUBLIC_APP_NAME: "دفتر المحاسب الذكي"
     scripts:
       - name: Install dependencies
         script: |
-          npm install -g pnpm
-          pnpm install --no-frozen-lockfile
+          yarn install 2>/dev/null || npm install --legacy-peer-deps
       - name: Build Android APK
         script: |
           npx eas-cli build --platform android --profile preview --non-interactive
     artifacts:
       - build/**/*.apk
-      - build/**/*.aab

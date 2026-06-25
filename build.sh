@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
-echo "🚀 بدء تثبيت التبعيات..."
-npm install -g pnpm
-pnpm install --no-frozen-lockfile
+echo "🚀 بدء تثبيت التبعيات باستخدام yarn..."
+yarn install --frozen-lockfile 2>/dev/null || yarn install
 
 echo "✅ تم التثبيت بنجاح!"
