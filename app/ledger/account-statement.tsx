@@ -1,226 +1,178 @@
-import { Ionicons } from '@expo/vector-icons';
-import { Stack } from 'expo-router';
 import React, { useState } from 'react';
-import { Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, StatusBar, Alert } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import FormField from '../../components/FormField';
-import { useApp } from '../../context/AppContext';
-import { useDatabase } from '../../context/DatabaseContext';
-import { useColors } from '../../hooks/useColors';
+import { useLocalTable } from '../../hooks/useLocalStore';
 
-interface StatementLine {
-  date: string;
-  description: string;
-  debit: number | null | undefined;
-  credit: number | null | undefined;
-  balance: number | null | undefined;
-  refNumber?: string | null;
-}
+interface Account { id: string; code: string; name: string; type: string; balance: number; }
+interface JournalLine { id: string; entryId: string; accountName: string; debit: number; credit: number; }
+interface JournalEntry { id: string; number: string; date: string; description: string; lines: JournalLine[]; }
 
 export default function AccountStatementScreen() {
-  const colors = useColors();
+  const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { isRTL, t } = useApp();
-  const { accounts, getAccountStatement } = useDatabase();
-  const color = colors.section1;
+  const { data: accounts } = useLocalTable<Account>('accounts');
+  const { data: entries } = useLocalTable<JournalEntry>('journalEntries');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedAccountId, setSelectedAccountId] = useState<string>('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
-  const [accountId, setAccountId] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState(new Date().toISOString().split('T')[0]);
-  const [rows, setRows] = useState<StatementLine[]>([]);
-  const [loaded, setLoaded] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [showPicker, setShowPicker] = useState(false);
+  const selectedAccount = accounts.find((a: Account) => a.id === selectedAccountId);
+  const safeNum = (v: any): number => (v === null || isNaN(Number(v)) ? 0 : Number(v));
 
-  const selectedAccount = accounts.find(a => a.id === accountId);
-
-  const safeNum = (v: number | null | undefined): number => (v == null || isNaN(Number(v)) ? 0 : Number(v));
-  const fmtNum = (v: number | null | undefined) => safeNum(v).toLocaleString('ar-EG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-  const handleSearch = async () => {
-    if (!accountId) return Alert.alert('', isRTL ? 'اختر حساباً أولاً' : 'Select an account first');
-    setLoading(true);
-    try {
-      const data = await getAccountStatement(accountId, from || undefined, to || undefined);
-      setRows((data || []) as StatementLine[]);
-      setLoaded(true);
-      setShowPicker(false);
-    } catch (e) {
-      Alert.alert('⚠️', String(e));
-    } finally {
-      setLoading(false);
+  // فلترة القيود حسب الحساب المحدد
+  const accountEntries = entries.filter((e: JournalEntry) => {
+    if (selectedAccountId && e.lines) {
+      return e.lines.some((l: JournalLine) => l.accountName === selectedAccount?.name);
     }
+    return true;
+  });
+
+  const totalDebit = accountEntries.reduce((s: number, e: JournalEntry) => {
+    return s + (e.lines || []).filter((l: JournalLine) => l.accountName === selectedAccount?.name).reduce((sum: number, l: JournalLine) => sum + safeNum(l.debit), 0);
+  }, 0);
+
+  const totalCredit = accountEntries.reduce((s: number, e: JournalEntry) => {
+    return s + (e.lines || []).filter((l: JournalLine) => l.accountName === selectedAccount?.name).reduce((sum: number, l: JournalLine) => sum + safeNum(l.credit), 0);
+  }, 0);
+
+  const theme = {
+    text: '#f1f5f9', accent: '#D4AF37', background: '#0A1128',
+    card: '#16213E', border: '#2a3550', mutedForeground: '#94a3b8',
   };
 
-  const totalDebit = rows.reduce((s, r) => s + safeNum(r.debit), 0);
-  const totalCredit = rows.reduce((s, r) => s + safeNum(r.credit), 0);
-  const finalBalance = safeNum(rows[rows.length - 1]?.balance);
-
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Stack.Screen options={{
-        title: isRTL ? 'كشف حساب' : 'Account Statement',
-        headerStyle: { backgroundColor: color },
-        headerTintColor: '#fff',
-      }} />
-
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 20 }}>
-
-        {/* Account Picker */}
-        <TouchableOpacity
-          style={[styles.pickerBtn, { backgroundColor: colors.card, borderColor: selectedAccount ? color : colors.border }]}
-          onPress={() => setShowPicker(!showPicker)}
-        >
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.pickerLabel, { color: colors.mutedForeground }]}>{isRTL ? 'الحساب *' : 'Account *'}</Text>
-            <Text style={[styles.pickerVal, { color: selectedAccount ? colors.foreground : colors.mutedForeground }]}>
-              {selectedAccount
-                ? `${selectedAccount.code} — ${isRTL ? selectedAccount.nameAr : selectedAccount.name}`
-                : (isRTL ? 'اختر حساباً...' : 'Select account...')}
-            </Text>
-          </View>
-          <Ionicons name={showPicker ? 'chevron-up' : 'chevron-down'} size={18} color={colors.mutedForeground} />
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="light-content" />
+      
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={[styles.backBtn, { color: theme.accent }]}>←</Text>
         </TouchableOpacity>
+        <Text style={[styles.title, { color: theme.text }]}>كشف حساب</Text>
+        <View style={{ width: 36 }} />
+      </View>
 
-        {showPicker && (
-          <View style={[styles.dropdown, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            {accounts.filter(a => a.isActive).map(a => (
-              <TouchableOpacity
-                key={a.id}
-                style={[styles.dropItem, { borderBottomColor: colors.border }, a.id === accountId && { backgroundColor: color + '14' }]}
-                onPress={() => { setAccountId(a.id); setShowPicker(false); }}
-              >
-                <Text style={[styles.dropCode, { color: colors.mutedForeground }]}>{a.code}</Text>
-                <Text style={[styles.dropName, { color: a.id === accountId ? color : colors.foreground }]}>
-                  {isRTL ? a.nameAr : a.name}
-                </Text>
-                {a.id === accountId && <Ionicons name="checkmark-circle" size={16} color={color} />}
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
+      {/* اختيار الحساب */}
+      <View style={styles.filterSection}>
+        <Text style={[styles.label, { color: theme.mutedForeground }]}>اختيار الحساب</Text>
+        <View style={styles.accountList}>
+          {accounts.slice(0, 10).map((acc: Account) => (
+            <TouchableOpacity
+              key={acc.id}
+              style={[styles.accountChip, selectedAccountId === acc.id && { backgroundColor: theme.accent + '30', borderColor: theme.accent }]}
+              onPress={() => setSelectedAccountId(acc.id)}
+            >
+              <Text style={[styles.accountChipText, { color: selectedAccountId === acc.id ? theme.accent : theme.mutedForeground }]}>
+                {acc.name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <TextInput style={styles.searchInput} placeholder="🔍 بحث عن حساب..." placeholderTextColor="#94a3b8" value={searchQuery} onChangeText={setSearchQuery} />
+        {searchQuery.length > 0 && accounts.filter((a: Account) => a.name?.includes(searchQuery)).map((acc: Account) => (
+          <TouchableOpacity key={acc.id} style={styles.searchResult} onPress={() => { setSelectedAccountId(acc.id); setSearchQuery(''); }}>
+            <Text style={{ color: '#FFFFFF' }}>{acc.name} ({acc.code})</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
 
-        {/* Date Range */}
-        <View style={[styles.dateRow, { flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-          <View style={{ flex: 1 }}>
-            <FormField label={isRTL ? 'من تاريخ' : 'From'} value={from} onChangeText={setFrom} placeholder="YYYY-MM-DD" />
-          </View>
-          <View style={{ width: 12 }} />
-          <View style={{ flex: 1 }}>
-            <FormField label={isRTL ? 'إلى تاريخ' : 'To'} value={to} onChangeText={setTo} placeholder="YYYY-MM-DD" />
+      {/* معلومات الحساب */}
+      {selectedAccount && (
+        <View style={[styles.infoCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <Text style={[styles.accountName, { color: theme.text }]}>{selectedAccount.name}</Text>
+          <Text style={[styles.accountCode, { color: theme.mutedForeground }]}>كود: {selectedAccount.code} | {selectedAccount.type}</Text>
+          <View style={styles.balanceRow}>
+            <View style={styles.balanceItem}>
+              <Text style={[styles.balanceLabel, { color: theme.mutedForeground }]}>مدين</Text>
+              <Text style={[styles.balanceValue, { color: '#10B981' }]}>{totalDebit.toLocaleString()} ﷼</Text>
+            </View>
+            <View style={styles.balanceItem}>
+              <Text style={[styles.balanceLabel, { color: theme.mutedForeground }]}>دائن</Text>
+              <Text style={[styles.balanceValue, { color: '#EF4444' }]}>{totalCredit.toLocaleString()} ﷼</Text>
+            </View>
+            <View style={styles.balanceItem}>
+              <Text style={[styles.balanceLabel, { color: theme.mutedForeground }]}>الرصيد</Text>
+              <Text style={[styles.balanceValue, { color: theme.accent }]}>
+                {((selectedAccount.balance || 0) + totalDebit - totalCredit).toLocaleString()} ﷼
+              </Text>
+            </View>
           </View>
         </View>
+      )}
 
-        {/* Search button */}
-        <TouchableOpacity
-          style={[styles.searchBtn, { backgroundColor: loading ? colors.mutedForeground : color }]}
-          onPress={handleSearch}
-          disabled={loading}
-        >
-          <Ionicons name={loading ? 'refresh' : 'search'} size={18} color="#fff" />
-          <Text style={styles.searchBtnText}>{loading ? (isRTL ? 'جاري البحث...' : 'Searching...') : (isRTL ? 'عرض الكشف' : 'View Statement')}</Text>
-        </TouchableOpacity>
-
-        {/* Totals Summary */}
-        {loaded && rows.length > 0 && (
-          <View style={[styles.summaryCard, { backgroundColor: color + '10', borderColor: color }]}>
-            <View style={styles.summaryRow}>
-              <View style={styles.summaryItem}>
-                <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>{isRTL ? 'مجموع المدين' : 'Total Debit'}</Text>
-                <Text style={[styles.summaryValue, { color: colors.section3 }]}>{fmtNum(totalDebit)}</Text>
-              </View>
-              <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
-              <View style={styles.summaryItem}>
-                <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>{isRTL ? 'مجموع الدائن' : 'Total Credit'}</Text>
-                <Text style={[styles.summaryValue, { color: colors.destructive }]}>{fmtNum(totalCredit)}</Text>
-              </View>
-              <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
-              <View style={styles.summaryItem}>
-                <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>{isRTL ? 'الرصيد' : 'Balance'}</Text>
-                <Text style={[styles.summaryValue, { color: finalBalance >= 0 ? colors.success : colors.destructive }]}>{fmtNum(finalBalance)}</Text>
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* Statement Table */}
-        {loaded && rows.length > 0 && (
-          <View style={[styles.tableWrap, { borderColor: colors.border }]}>
-            {/* Header */}
-            <View style={[styles.tableHeader, { backgroundColor: color, flexDirection: isRTL ? 'row-reverse' : 'row' }]}>
-              <Text style={[styles.thDate]}>{isRTL ? 'التاريخ' : 'Date'}</Text>
-              <Text style={[styles.thDesc]}>{isRTL ? 'البيان' : 'Description'}</Text>
-              <Text style={[styles.thAmt]}>{isRTL ? 'مدين' : 'Debit'}</Text>
-              <Text style={[styles.thAmt]}>{isRTL ? 'دائن' : 'Credit'}</Text>
-              <Text style={[styles.thAmt]}>{isRTL ? 'الرصيد' : 'Balance'}</Text>
-            </View>
-            {rows.map((row, i) => {
-              const d = safeNum(row.debit);
-              const c = safeNum(row.credit);
-              const b = safeNum(row.balance);
-              return (
-                <View
-                  key={i}
-                  style={[
-                    styles.tableRow,
-                    { borderTopColor: colors.border, backgroundColor: i % 2 === 0 ? colors.background : colors.card, flexDirection: isRTL ? 'row-reverse' : 'row' },
-                  ]}
-                >
-                  <Text style={[styles.tdDate, { color: colors.mutedForeground }]}>{row.date || '—'}</Text>
-                  <Text style={[styles.tdDesc, { color: colors.foreground }]} numberOfLines={2}>{row.description || '—'}</Text>
-                  <Text style={[styles.tdAmt, { color: d > 0 ? colors.section3 : colors.mutedForeground }]}>
-                    {d > 0 ? fmtNum(d) : '—'}
-                  </Text>
-                  <Text style={[styles.tdAmt, { color: c > 0 ? colors.destructive : colors.mutedForeground }]}>
-                    {c > 0 ? fmtNum(c) : '—'}
-                  </Text>
-                  <Text style={[styles.tdAmt, { color: b >= 0 ? colors.success : colors.destructive, fontWeight: '700' }]}>
-                    {fmtNum(b)}
-                  </Text>
+      {/* الحركات */}
+      {selectedAccount && accountEntries.length > 0 ? (
+        <FlatList
+          data={accountEntries}
+          keyExtractor={(item: JournalEntry) => item.id}
+          renderItem={({ item }) => {
+            const line = item.lines?.find((l: JournalLine) => l.accountName === selectedAccount.name);
+            return (
+              <View style={[styles.entryCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                <View style={styles.entryHeader}>
+                  <Text style={[styles.entryNumber, { color: theme.accent }]}>{item.number}</Text>
+                  <Text style={[styles.entryDate, { color: theme.mutedForeground }]}>{item.date}</Text>
                 </View>
-              );
-            })}
-          </View>
-        )}
-
-        {/* Empty state */}
-        {loaded && rows.length === 0 && (
-          <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Ionicons name="document-text-outline" size={48} color={colors.mutedForeground} />
-            <Text style={{ color: colors.mutedForeground, marginTop: 12, fontSize: 15 }}>{t.common.noData}</Text>
-          </View>
-        )}
-      </ScrollView>
+                <Text style={[styles.entryDesc, { color: theme.text }]}>{item.description}</Text>
+                {line && (
+                  <View style={styles.entryAmounts}>
+                    {safeNum(line.debit) > 0 && (
+                      <Text style={[styles.amountText, { color: '#10B981' }]}>مدين: {safeNum(line.debit).toLocaleString()} ﷼</Text>
+                    )}
+                    {safeNum(line.credit) > 0 && (
+                      <Text style={[styles.amountText, { color: '#EF4444' }]}>دائن: {safeNum(line.credit).toLocaleString()} ﷼</Text>
+                    )}
+                  </View>
+                )}
+              </View>
+            );
+          }}
+          contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
+        />
+      ) : selectedAccount ? (
+        <View style={styles.empty}>
+          <Text style={styles.emptyIcon}>📄</Text>
+          <Text style={[styles.emptyText, { color: theme.text }]}>لا توجد حركات لهذا الحساب</Text>
+        </View>
+      ) : (
+        <View style={styles.empty}>
+          <Text style={styles.emptyIcon}>🔍</Text>
+          <Text style={[styles.emptyText, { color: theme.text }]}>اختر حساباً لعرض كشف الحساب</Text>
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  pickerBtn: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 12, borderWidth: 1.5, marginBottom: 10 },
-  pickerLabel: { fontSize: 11, fontWeight: '600', marginBottom: 2 },
-  pickerVal: { fontSize: 14, fontWeight: '500' },
-  dropdown: { borderRadius: 12, borderWidth: 1, marginBottom: 10, overflow: 'hidden', maxHeight: 260 },
-  dropItem: { flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: 0.5, gap: 8 },
-  dropCode: { width: 52, fontSize: 11, fontWeight: '600' },
-  dropName: { flex: 1, fontSize: 13 },
-  dateRow: { marginBottom: 4 },
-  searchBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 12, marginBottom: 14 },
-  searchBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  summaryCard: { borderRadius: 12, borderWidth: 1, padding: 14, marginBottom: 14 },
-  summaryRow: { flexDirection: 'row', alignItems: 'center' },
-  summaryItem: { flex: 1, alignItems: 'center' },
-  summaryDivider: { width: 1, height: 36, marginHorizontal: 8 },
-  summaryLabel: { fontSize: 10, fontWeight: '600', marginBottom: 4, textAlign: 'center' },
-  summaryValue: { fontSize: 14, fontWeight: '800', textAlign: 'center' },
-  tableWrap: { borderRadius: 12, borderWidth: 1, overflow: 'hidden', marginBottom: 16 },
-  tableHeader: { padding: 10, gap: 4 },
-  thDate: { width: 72, color: '#fff', fontSize: 11, fontWeight: '700' },
-  thDesc: { flex: 1, color: '#fff', fontSize: 11, fontWeight: '700' },
-  thAmt: { width: 70, color: '#fff', fontSize: 11, fontWeight: '700', textAlign: 'right' },
-  tableRow: { padding: 10, borderTopWidth: 0.5, gap: 4 },
-  tdDate: { width: 72, fontSize: 11 },
-  tdDesc: { flex: 1, fontSize: 12 },
-  tdAmt: { width: 70, fontSize: 12, textAlign: 'right' },
-  emptyCard: { borderRadius: 14, borderWidth: 1, padding: 48, alignItems: 'center' },
+  container: { flex: 1, backgroundColor: '#0A1128' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
+  backBtn: { fontSize: 24, fontWeight: 'bold' },
+  title: { fontSize: 18, fontWeight: 'bold' },
+  filterSection: { paddingHorizontal: 16, marginBottom: 12 },
+  label: { fontSize: 13, marginBottom: 8 },
+  accountList: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
+  accountChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: '#16213E', borderWidth: 1, borderColor: '#2a3550' },
+  accountChipText: { fontSize: 12 },
+  searchInput: { backgroundColor: '#16213E', borderRadius: 10, padding: 10, color: '#FFFFFF', borderWidth: 1, borderColor: '#2a3550', textAlign: 'right', fontSize: 14 },
+  searchResult: { padding: 10, backgroundColor: '#16213E', borderRadius: 8, marginTop: 4 },
+  infoCard: { marginHorizontal: 16, marginBottom: 16, padding: 16, borderRadius: 14, borderWidth: 1 },
+  accountName: { fontSize: 18, fontWeight: 'bold', marginBottom: 4 },
+  accountCode: { fontSize: 12, marginBottom: 12 },
+  balanceRow: { flexDirection: 'row', justifyContent: 'space-around' },
+  balanceItem: { alignItems: 'center' },
+  balanceLabel: { fontSize: 11, marginBottom: 4 },
+  balanceValue: { fontSize: 16, fontWeight: 'bold' },
+  empty: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  emptyIcon: { fontSize: 48, marginBottom: 12 },
+  emptyText: { fontSize: 16, fontWeight: 'bold' },
+  entryCard: { padding: 14, borderRadius: 12, marginBottom: 8, borderWidth: 1 },
+  entryHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  entryNumber: { fontSize: 13, fontWeight: 'bold' },
+  entryDate: { fontSize: 11 },
+  entryDesc: { fontSize: 14, marginBottom: 6 },
+  entryAmounts: { flexDirection: 'row', gap: 12 },
+  amountText: { fontSize: 13, fontWeight: 'bold' },
 });
