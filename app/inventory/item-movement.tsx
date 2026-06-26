@@ -72,7 +72,7 @@ export default function ItemMovementScreen() {
             </View>
           )} contentContainerStyle={{ padding: 16 }} />
       )}
-      <PickerModal visible={showItemPicker} title="اختيار الصنف" data={items||[]} displayField="name" subField="code" onSelect={(i) => { setSelectedItem(i); setShowItemPicker(false); }} onClose={() => setShowItemPicker(false)} />
+      <PickerModal visible={showItemPicker} title="اختيار الصنف" data={items||[]} displayField="name" subField="code" onSelect={(i: any) => { setSelectedItem(i); setShowItemPicker(false); }} onClose={() => setShowItemPicker(false)} />
     </View>
   );
 }

@@ -82,7 +82,7 @@ export default function ItemsScreen() {
           data={filtered}
           keyExtractor={(item: Item) => item.id}
           renderItem={({ item }) => (
-            <TouchableOpacity style={styles.card} onPress={() => openEdit(item)} onLongPress={() => handleDelete(item)}>
+            <TouchableOpacity style={styles.card} onPress={() => openEdit(item as any)} onLongPress={() => handleDelete(item)}>
               <View style={styles.cardHeader}>
                 <Text style={styles.cardIcon}>📦</Text>
                 <View style={styles.cardInfo}>
@@ -96,11 +96,11 @@ export default function ItemsScreen() {
               <View style={styles.priceRow}>
                 <View style={styles.priceItem}>
                   <Text style={styles.priceLabel}>تكلفة</Text>
-                  <Text style={[styles.priceValue, { color: '#EF4444' }]}>{(item.costPrice || 0).toLocaleString()} ﷼</Text>
+<Text style={[styles.priceValue, { color: '#EF4444' }]}>{(item as any).costPrice} ر.س</Text>
                 </View>
                 <View style={styles.priceItem}>
                   <Text style={styles.priceLabel}>بيع</Text>
-                  <Text style={[styles.priceValue, { color: '#10B981' }]}>{(item.salePrice || 0).toLocaleString()} ﷼</Text>
+<Text style={[styles.priceValue, { color: '#10B981' }]}>{(item as any).salePrice} ر.س</Text>
                 </View>
               </View>
             </TouchableOpacity>

@@ -117,7 +117,7 @@ export default function BanksScreen() {
                   {item.phone ? <Text style={styles.cardPhone}>{item.phone}</Text> : null}
                 </View>
                 <Text style={[styles.cardBalance, { color: (item.balance || 0) >= 0 ? '#10B981' : '#EF4444' }]}>
-                  {(item.balance || 0).toLocaleString()} ﷼
+{(item as any).balance} ر.س
                 </Text>
               </View>
             </TouchableOpacity>

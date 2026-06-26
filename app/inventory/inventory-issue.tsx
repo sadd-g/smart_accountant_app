@@ -5,9 +5,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalTable } from '../../hooks/useLocalStore';
 import { PickerModal } from '../../src/components/ui/PickerModal';
 
+interface IssueItem { id: string; itemId: string; itemName: string; unit: string; qty: string; price: string; total: string; }
+interface InventoryIssue { id: string; number: string; date: string; warehouseId: string; warehouseName: string; accountId: string; accountName: string; description: string; refNumber: string; totalAmount: number; items: IssueItem[]; }
+
 export default function InventoryIssueScreen() {
-  const router = useRouter(); const insets = useSafeAreaInsets();
-  const { data: issues, add, remove } = useLocalTable('inventoryIssues');
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { data: issues, add, remove } = useLocalTable<InventoryIssue>('inventoryIssues');
   const { data: warehouses } = useLocalTable('warehouses');
   const { data: items } = useLocalTable('items');
   const { data: accounts } = useLocalTable('accounts');
@@ -20,7 +24,7 @@ export default function InventoryIssueScreen() {
   const [showUnitPicker, setShowUnitPicker] = useState(false);
   const [currentLineId, setCurrentLineId] = useState('');
   const [formData, setFormData] = useState({ date: new Date().toISOString().split('T')[0], warehouseId: '', warehouseName: '', accountId: '', accountName: '', description: '', refNumber: '' });
-  const [lines, setLines] = useState([{ id: '1', itemId: '', itemName: '', unit: 'قطعة', qty: '0', price: '0', total: '0' }]);
+  const [lines, setLines] = useState<IssueItem[]>([{ id: '1', itemId: '', itemName: '', unit: 'قطعة', qty: '0', price: '0', total: '0' }]);
 
   const addLine = () => setLines([...lines, { id: Date.now().toString(), itemId: '', itemName: '', unit: 'قطعة', qty: '0', price: '0', total: '0' }]);
   const removeLine = (id: string) => { if (lines.length > 1) setLines(lines.filter(l => l.id !== id)); };
@@ -36,13 +40,15 @@ export default function InventoryIssueScreen() {
     setShowModal(false);
   };
 
+  const filtered = (issues || []).filter((i: InventoryIssue) => i.number?.includes(searchQuery));
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle="light-content" />
       <View style={styles.header}><TouchableOpacity onPress={() => router.back()}><Text style={styles.backBtn}>←</Text></TouchableOpacity><Text style={styles.title}>صرف مخزون</Text><TouchableOpacity style={styles.addBtn} onPress={() => { setFormData({ date: new Date().toISOString().split('T')[0], warehouseId: '', warehouseName: '', accountId: '', accountName: '', description: '', refNumber: '' }); setLines([{ id: '1', itemId: '', itemName: '', unit: 'قطعة', qty: '0', price: '0', total: '0' }]); setShowModal(true); }}><Text style={styles.addBtnText}>+</Text></TouchableOpacity></View>
       <View style={styles.controlBar}><TextInput style={styles.searchInput} placeholder="🔍 بحث..." placeholderTextColor="#94a3b8" value={searchQuery} onChangeText={setSearchQuery} /><TouchableOpacity style={styles.printBtn}><Text>🖨️</Text></TouchableOpacity></View>
-      {issues.length === 0 ? (<View style={styles.empty}><Text style={styles.emptyIcon}>📤</Text><Text style={styles.emptyText}>لا توجد عمليات</Text></View>) : (
-        <FlatList data={issues} keyExtractor={(i: any) => i.id} renderItem={({ item }) => (
+      {filtered.length === 0 ? (<View style={styles.empty}><Text style={styles.emptyIcon}>📤</Text><Text style={styles.emptyText}>لا توجد عمليات</Text></View>) : (
+        <FlatList data={filtered} keyExtractor={(i: InventoryIssue) => i.id} renderItem={({ item }: { item: InventoryIssue }) => (
           <TouchableOpacity style={styles.card} onLongPress={() => Alert.alert('حذف', `حذف "${item.number}"؟`, [{ text: 'حذف', style: 'destructive', onPress: () => remove(item.id) }, { text: 'إلغاء' }])}>
             <Text style={styles.cardNumber}>{item.number}</Text><Text style={styles.cardDetail}>🏭 {item.warehouseName} → {item.accountName}</Text><Text style={styles.cardTotal}>{item.totalAmount?.toLocaleString()} ﷼</Text>
           </TouchableOpacity>
@@ -77,10 +83,10 @@ export default function InventoryIssueScreen() {
           </ScrollView>
         </View></View>
       </Modal>
-      <PickerModal visible={showWarehousePicker} title="اختيار المخزن" data={warehouses||[]} displayField="name" subField="code" onSelect={i=>setFormData({...formData,warehouseId:i.id,warehouseName:i.name})} onClose={()=>setShowWarehousePicker(false)} />
-      <PickerModal visible={showAccountPicker} title="اختيار الحساب" data={accounts||[]} displayField="name" subField="code" onSelect={i=>setFormData({...formData,accountId:i.id,accountName:i.name})} onClose={()=>setShowAccountPicker(false)} />
-      <PickerModal visible={showItemPicker} title="اختيار الصنف" data={items||[]} displayField="name" subField="code" onSelect={i=>{updateLine(currentLineId,'itemId',i.id);updateLine(currentLineId,'itemName',i.name);updateLine(currentLineId,'price',i.costPrice?.toString()||'0');}} onClose={()=>setShowItemPicker(false)} />
-      <PickerModal visible={showUnitPicker} title="اختيار الوحدة" data={units||[]} displayField="name" subField="code" onSelect={i=>updateLine(currentLineId,'unit',i.name)} onClose={()=>setShowUnitPicker(false)} />
+      <PickerModal visible={showWarehousePicker} title="اختيار المخزن" data={warehouses||[]} displayField="name" subField="code" onSelect={(i: any) => setFormData({...formData,warehouseId:i.id,warehouseName:i.name})} onClose={()=>setShowWarehousePicker(false)} />
+      <PickerModal visible={showAccountPicker} title="اختيار الحساب" data={accounts||[]} displayField="name" subField="code" onSelect={(i: any) => setFormData({...formData,accountId:i.id,accountName:i.name})} onClose={()=>setShowAccountPicker(false)} />
+      <PickerModal visible={showItemPicker} title="اختيار الصنف" data={items||[]} displayField="name" subField="code" onSelect={(i: any) => {updateLine(currentLineId,'itemId',i.id);updateLine(currentLineId,'itemName',i.name);updateLine(currentLineId,'price',i.costPrice?.toString()||'0');}} onClose={()=>setShowItemPicker(false)} />
+      <PickerModal visible={showUnitPicker} title="اختيار الوحدة" data={units||[]} displayField="name" subField="code" onSelect={(i: any) => updateLine(currentLineId,'unit',i.name)} onClose={()=>setShowUnitPicker(false)} />
     </View>
   );
 }

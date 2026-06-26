@@ -79,7 +79,7 @@ export default function VoiceCommandScreen() {
             <Text style={styles.cardTitle}>📋 مسودة المعاملة</Text>
             <Text style={styles.draftType}>{draft.type}</Text>
             {draft.items?.map((item: any, i: number) => (
-              <Text key={i} style={styles.cardText}>📦 {item.name}: {item.qty} × {item.price} = {(item.qty * item.price).toLocaleString()} ﷼</Text>
+<Text key={i} style={styles.cardText}>{(item as any).name}: {(item as any).qty} x {(item as any).price} = {((item as any).qty * (item as any).price)} ر.س</Text>
             ))}
             {draft.total && <Text style={styles.cardText}>الإجمالي: {draft.total.toLocaleString()} ﷼</Text>}
             {draft.amount && <Text style={styles.cardText}>المبلغ: {draft.amount.toLocaleString()} ﷼</Text>}

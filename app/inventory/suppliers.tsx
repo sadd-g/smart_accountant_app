@@ -82,7 +82,7 @@ export default function SuppliersScreen() {
           data={filtered}
           keyExtractor={(item: Supplier) => item.id}
           renderItem={({ item }) => (
-            <TouchableOpacity style={styles.card} onPress={() => openEdit(item)} onLongPress={() => handleDelete(item)}>
+            <TouchableOpacity style={styles.card} onPress={() => openEdit(item as any)} onLongPress={() => handleDelete(item)}>
               <View style={styles.cardHeader}>
                 <Text style={styles.cardIcon}>🏪</Text>
                 <View style={styles.cardInfo}>
@@ -92,13 +92,13 @@ export default function SuppliersScreen() {
                 </View>
                 <View style={styles.balanceContainer}>
                   <Text style={[styles.balanceValue, { color: (item.balance || 0) >= 0 ? '#EF4444' : '#10B981' }]}>
-                    {(item.balance || 0).toLocaleString()} ﷼
+{(item as any).balance} ر.س
                   </Text>
                 </View>
               </View>
               <View style={styles.cardFooter}>
-                <TouchableOpacity style={styles.editBtn} onPress={() => openEdit(item)}><Text style={styles.editBtnText}>✏️ تعديل</Text></TouchableOpacity>
-                <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item)}><Text style={styles.deleteBtnText}>🗑️ حذف</Text></TouchableOpacity>
+                <TouchableOpacity style={styles.editBtn} onPress={() => openEdit(item as any)}><Text style={styles.editBtnText}>✏️ تعديل</Text></TouchableOpacity>
+                <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item as any)}><Text style={styles.deleteBtnText}>🗑️ حذف</Text></TouchableOpacity>
               </View>
             </TouchableOpacity>
           )}

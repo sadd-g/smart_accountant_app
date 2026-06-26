@@ -51,35 +51,113 @@ export default function DashboardScreen() {
         </View>
 
         <Text style={styles.secTitle}>📊 الأقسام الرئيسية</Text>
-        
-        <TouchableOpacity style={[styles.card, { borderLeftColor: '#D4AF37' }]} onPress={() => router.push('/ledger/index')}>
-          <Text style={styles.cardIcon}>📚</Text>
-          <View style={{ flex: 1 }}><Text style={styles.cardLabel}>دفتر الأستاذ العام</Text><Text style={styles.cardDesc}>الحسابات، القيود، السندات، البنوك</Text></View>
-          <Text style={styles.cardArrow}>→</Text>
-        </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.card, { borderLeftColor: '#3B82F6' }]} onPress={() => router.push('/inventory/index')}>
-          <Text style={styles.cardIcon}>📦</Text>
-          <View style={{ flex: 1 }}><Text style={styles.cardLabel}>المخزون والمشتريات</Text><Text style={styles.cardDesc}>الموردين، الأصناف، المستودعات</Text></View>
-          <Text style={styles.cardArrow}>→</Text>
-        </TouchableOpacity>
+        {/* قسم دفتر الأستاذ */}
+        <View style={styles.sectionCard}>
+          <TouchableOpacity style={styles.sectionHead} onPress={() => router.push('/ledger/index')}>
+            <Text style={styles.sectionIcon}>📚</Text>
+            <Text style={styles.sectionName}>دفتر الأستاذ العام</Text>
+            <Text style={styles.sectionArrow}>›</Text>
+          </TouchableOpacity>
+          <View style={styles.subGrid}>
+            {[
+              { icon: '📚', label: 'دليل الحسابات', route: '/ledger/accounts' },
+              { icon: '📁', label: 'مجموعات الحسابات', route: '/ledger/account-groups' },
+              { icon: '📝', label: 'القيود اليومية', route: '/ledger/journal-entry' },
+              { icon: '🧾', label: 'سندات القبض والصرف', route: '/ledger/vouchers' },
+              { icon: '💰', label: 'الصناديق', route: '/ledger/cash-boxes' },
+              { icon: '🏦', label: 'البنوك والمحافظ', route: '/ledger/banks' },
+              { icon: '💱', label: 'العملات', route: '/ledger/currencies' },
+              { icon: '⚖️', label: 'ميزان المراجعة', route: '/ledger/trial-balance' },
+              { icon: '📄', label: 'كشف حساب', route: '/ledger/account-statement' },
+            ].map((item, j) => (
+              <TouchableOpacity key={j} style={styles.subItem} onPress={() => router.push(item.route)}>
+                <Text style={styles.subIcon}>{item.icon}</Text>
+                <Text style={styles.subLabel}>{item.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
 
-        <TouchableOpacity style={[styles.card, { borderLeftColor: '#10B981' }]} onPress={() => router.push('/sales/index')}>
-          <Text style={styles.cardIcon}>💰</Text>
-          <View style={{ flex: 1 }}><Text style={styles.cardLabel}>المبيعات والعملاء</Text><Text style={styles.cardDesc}>الفواتير، العملاء، المندوبين</Text></View>
-          <Text style={styles.cardArrow}>→</Text>
-        </TouchableOpacity>
+        {/* قسم المخزون */}
+        <View style={styles.sectionCard}>
+          <TouchableOpacity style={styles.sectionHead} onPress={() => router.push('/inventory/index')}>
+            <Text style={styles.sectionIcon}>📦</Text>
+            <Text style={styles.sectionName}>المخزون والمشتريات</Text>
+            <Text style={styles.sectionArrow}>›</Text>
+          </TouchableOpacity>
+          <View style={styles.subGrid}>
+            {[
+              { icon: '🏪', label: 'الموردين', route: '/inventory/suppliers' },
+              { icon: '🏭', label: 'المستودعات', route: '/inventory/warehouses' },
+              { icon: '📦', label: 'الأصناف', route: '/inventory/items' },
+              { icon: '📋', label: 'فاتورة مشتريات', route: '/inventory/purchase-invoice' },
+              { icon: '📤', label: 'صرف مخزون', route: '/inventory/inventory-issue' },
+              { icon: '📥', label: 'توريد مخزون', route: '/inventory/inventory-receipt' },
+              { icon: '🔄', label: 'تحويل مخزني', route: '/inventory/warehouse-transfer' },
+              { icon: '📐', label: 'وحدات القياس', route: '/inventory/units' },
+              { icon: '🏷️', label: 'الفئات', route: '/inventory/categories' },
+              { icon: '⭐', label: 'الماركات', route: '/inventory/brands' },
+              { icon: '📊', label: 'حركة الأصناف', route: '/inventory/item-movement' },
+            ].map((item, j) => (
+              <TouchableOpacity key={j} style={styles.subItem} onPress={() => router.push(item.route)}>
+                <Text style={styles.subIcon}>{item.icon}</Text>
+                <Text style={styles.subLabel}>{item.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
 
-        <TouchableOpacity style={[styles.card, { borderLeftColor: '#7C3AED' }]} onPress={() => router.push('/reports/index')}>
-          <Text style={styles.cardIcon}>📊</Text>
-          <View style={{ flex: 1 }}><Text style={styles.cardLabel}>التقارير والتنبيهات</Text><Text style={styles.cardDesc}>جميع التقارير المالية</Text></View>
-          <Text style={styles.cardArrow}>→</Text>
-        </TouchableOpacity>
+        {/* قسم المبيعات */}
+        <View style={styles.sectionCard}>
+          <TouchableOpacity style={styles.sectionHead} onPress={() => router.push('/sales/index')}>
+            <Text style={styles.sectionIcon}>💰</Text>
+            <Text style={styles.sectionName}>المبيعات والعملاء</Text>
+            <Text style={styles.sectionArrow}>›</Text>
+          </TouchableOpacity>
+          <View style={styles.subGrid}>
+            {[
+              { icon: '👥', label: 'العملاء', route: '/sales/customers' },
+              { icon: '📄', label: 'فاتورة مبيعات', route: '/sales/sales-invoice' },
+              { icon: '🔄', label: 'مرتجع مبيعات', route: '/sales/sales-return' },
+              { icon: '👨‍💼', label: 'مندوبي المبيعات', route: '/sales/reps' },
+              { icon: '📊', label: 'ملخص المبيعات', route: '/sales/summary' },
+              { icon: '📋', label: 'عرض سعر', route: '/sales/quotation' },
+            ].map((item, j) => (
+              <TouchableOpacity key={j} style={styles.subItem} onPress={() => router.push(item.route)}>
+                <Text style={styles.subIcon}>{item.icon}</Text>
+                <Text style={styles.subLabel}>{item.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* قسم التقارير */}
+        <View style={styles.sectionCard}>
+          <TouchableOpacity style={styles.sectionHead} onPress={() => router.push('/reports/index')}>
+            <Text style={styles.sectionIcon}>📊</Text>
+            <Text style={styles.sectionName}>التقارير والتنبيهات</Text>
+            <Text style={styles.sectionArrow}>›</Text>
+          </TouchableOpacity>
+          <View style={styles.subGrid}>
+            {[
+              { icon: '📊', label: 'جميع التقارير', route: '/reports/index' },
+              { icon: '⚖️', label: 'ميزان المراجعة', route: '/ledger/trial-balance' },
+              { icon: '📄', label: 'كشف حساب', route: '/ledger/account-statement' },
+              { icon: '💱', label: 'تقارير العملات', route: '/ledger/currency-reports' },
+            ].map((item, j) => (
+              <TouchableOpacity key={j} style={styles.subItem} onPress={() => router.push(item.route)}>
+                <Text style={styles.subIcon}>{item.icon}</Text>
+                <Text style={styles.subLabel}>{item.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
 
         <Text style={styles.secTitle}>⚙️ النظام</Text>
         {[
           { icon: '⚙️', label: 'الإعدادات', route: '/settings' },
-          { icon: '👑', label: 'لوحة المالك', route: '/owner' },
+          { icon: '👑', label: 'لوحة تحكم المالك', route: '/owner' },
           { icon: '🎤', label: 'الأوامر الصوتية', route: '/voice' },
           { icon: '💾', label: 'النسخ الاحتياطي', route: '/backup' },
           { icon: 'ℹ️', label: 'حول التطبيق', route: '/about' },
@@ -88,7 +166,7 @@ export default function DashboardScreen() {
           <TouchableOpacity key={i} style={styles.sysItem} onPress={() => router.push(link.route)}>
             <Text style={styles.sysIcon}>{link.icon}</Text>
             <Text style={styles.sysLabel}>{link.label}</Text>
-            <Text style={styles.cardArrow}>→</Text>
+            <Text style={styles.sectionArrow}>›</Text>
           </TouchableOpacity>
         ))}
 
@@ -113,11 +191,15 @@ const styles = StyleSheet.create({
   quickCard: { flex: 1, alignItems: 'center' },
   quickIcon: { fontSize: 22, marginBottom: 4 },
   quickLabel: { color: '#FFFFFF', fontSize: 10, textAlign: 'center' },
-  card: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#16213E', borderRadius: 14, padding: 16, marginBottom: 10, borderLeftWidth: 4, borderWidth: 1, borderColor: '#2a3550' },
-  cardIcon: { fontSize: 28, marginRight: 12 },
-  cardLabel: { color: '#FFFFFF', fontSize: 14, fontWeight: 'bold', marginBottom: 3 },
-  cardDesc: { color: '#94a3b8', fontSize: 11 },
-  cardArrow: { fontSize: 20, color: '#D4AF37', fontWeight: 'bold' },
+  sectionCard: { backgroundColor: '#16213E', borderRadius: 16, marginBottom: 12, borderWidth: 1, borderColor: '#2a3550', overflow: 'hidden' },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', padding: 14, backgroundColor: '#1a2240' },
+  sectionIcon: { fontSize: 24, marginRight: 10 },
+  sectionName: { flex: 1, color: '#FFFFFF', fontSize: 14, fontWeight: 'bold' },
+  sectionArrow: { fontSize: 22, color: '#D4AF37', fontWeight: 'bold' },
+  subGrid: { flexDirection: 'row', flexWrap: 'wrap', padding: 8 },
+  subItem: { width: '33%', alignItems: 'center', paddingVertical: 10 },
+  subIcon: { fontSize: 20, marginBottom: 3 },
+  subLabel: { color: '#94a3b8', fontSize: 10, textAlign: 'center' },
   sysItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#16213E', borderRadius: 12, padding: 14, marginBottom: 6, borderWidth: 1, borderColor: '#2a3550' },
   sysIcon: { fontSize: 18, marginRight: 10 },
   sysLabel: { color: '#FFFFFF', fontSize: 13, flex: 1 },

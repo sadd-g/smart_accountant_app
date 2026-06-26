@@ -132,7 +132,7 @@ export default function LoginScreen() {
   if (isLocked) {
     return (
       <View style={styles.container}>
-        <LinearGradient colors={['#0A1128', '#16213E', '#1A1A2E']} style={styles.bg} />
+        <LinearGradient colors={['#0A1128', '#16213E', '#1A1A2E'] as const} style={styles.bg} />
         <View style={styles.lockContent}>
           <Text style={styles.lockIcon}>🔒</Text>
           <Text style={styles.lockTitle}>تم قفل التطبيق</Text>
@@ -146,12 +146,12 @@ export default function LoginScreen() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
-      <LinearGradient colors={['#0A1128', '#16213E', '#1A1A2E']} style={styles.bg} />
+      <LinearGradient colors={['#0A1128', '#16213E', '#1A1A2E'] as const} style={styles.bg} />
 
       <View style={styles.content}>
         {/* الشعار */}
         <View style={styles.logoContainer}>
-          <LinearGradient colors={['#D4AF37', '#FFD700']} style={styles.logoCircle}>
+          <LinearGradient colors={['#D4AF37', '#FFD700'] as const} style={styles.logoCircle}>
             <Text style={styles.logoText}>💎</Text>
           </LinearGradient>
         </View>

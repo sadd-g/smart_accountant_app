@@ -2,14 +2,9 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, ScrollView } from 'react-native';
 
 interface PickerModalProps {
-  visible: boolean;
-  title: string;
-  data: any[];
-  searchPlaceholder?: string;
-  displayField?: string;
-  subField?: string;
-  onSelect: (item: any) => void;
-  onClose: () => void;
+  visible: boolean; title: string; data: any[];
+  searchPlaceholder?: string; displayField?: string; subField?: string;
+  onSelect: (item: any) => void; onClose: () => void;
 }
 
 export const PickerModal: React.FC<PickerModalProps> = ({
@@ -17,9 +12,8 @@ export const PickerModal: React.FC<PickerModalProps> = ({
   displayField = 'name', subField = 'code', onSelect, onClose
 }) => {
   const [search, setSearch] = useState('');
-  const filtered = (data || []).filter(item => {
-    const d = item[displayField] || '';
-    const s = item[subField] || '';
+  const filtered = (data || []).filter((item: any) => {
+    const d = item[displayField] || ''; const s = item[subField] || '';
     return d.includes(search) || s.includes(search);
   });
 
@@ -27,14 +21,11 @@ export const PickerModal: React.FC<PickerModalProps> = ({
     <Modal visible={visible} animationType="slide" transparent>
       <View style={styles.overlay}>
         <View style={styles.content}>
-          <View style={styles.header}>
-            <Text style={styles.title}>{title}</Text>
-            <TouchableOpacity onPress={onClose}><Text style={styles.close}>✕</Text></TouchableOpacity>
-          </View>
+          <View style={styles.header}><Text style={styles.title}>{title}</Text><TouchableOpacity onPress={onClose}><Text style={styles.close}>✕</Text></TouchableOpacity></View>
           <View style={styles.body}>
             <TextInput style={styles.search} value={search} onChangeText={setSearch} placeholder={searchPlaceholder} placeholderTextColor="#666" />
             <ScrollView style={{ maxHeight: 400 }}>
-              {filtered.map((item, i) => (
+              {filtered.map((item: any, i: number) => (
                 <TouchableOpacity key={item.id || i} style={styles.item} onPress={() => { onSelect(item); onClose(); }}>
                   <Text style={styles.itemText}>{item[displayField]}</Text>
                   {item[subField] ? <Text style={styles.itemSub}>{item[subField]}</Text> : null}

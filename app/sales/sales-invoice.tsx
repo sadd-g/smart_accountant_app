@@ -91,7 +91,7 @@ export default function SalesInvoiceScreen() {
       ) : (
         <FlatList data={filtered} keyExtractor={(i: any) => i.id}
           renderItem={({ item }) => (
-            <TouchableOpacity style={styles.invCard} onPress={() => openEdit(item)} onLongPress={() => Alert.alert('حذف', `حذف "${item.number}"؟`, [{ text: 'حذف', style: 'destructive', onPress: () => remove(item.id) }, { text: 'إلغاء' }])}>
+            <TouchableOpacity style={styles.invCard} onPress={() => openEdit(item as any)} onLongPress={() => Alert.alert('حذف', `حذف "${item.number}"؟`, [{ text: 'حذف', style: 'destructive', onPress: () => remove(item.id) }, { text: 'إلغاء' }])}>
               <View style={styles.invHeader}><Text style={styles.invNumber}>{item.number}</Text><Text style={[styles.invTotal, { color: item.remaining > 0 ? '#F59E0B' : '#10B981' }]}>{item.total?.toLocaleString()} ﷼</Text></View>
               <Text style={styles.invCustomer}>👤 {item.customerName}</Text>
               <View style={styles.invFooter}><Text style={styles.invDate}>{item.date}</Text><Text style={[styles.invType, { color: item.type === 'cash' ? '#10B981' : '#F59E0B' }]}>{item.type === 'cash' ? '💰 نقدي' : '📋 آجل'}</Text></View>

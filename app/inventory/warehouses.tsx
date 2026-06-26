@@ -78,7 +78,7 @@ export default function WarehousesScreen() {
           data={filtered}
           keyExtractor={(item: Warehouse) => item.id}
           renderItem={({ item }) => (
-            <TouchableOpacity style={styles.card} onPress={() => openEdit(item)} onLongPress={() => handleDelete(item)}>
+            <TouchableOpacity style={styles.card} onPress={() => openEdit(item as any)} onLongPress={() => handleDelete(item)}>
               <View style={styles.cardHeader}>
                 <Text style={styles.cardIcon}>🏭</Text>
                 <View style={styles.cardInfo}>
@@ -92,8 +92,8 @@ export default function WarehousesScreen() {
                 </View>
               </View>
               <View style={styles.cardFooter}>
-                <TouchableOpacity style={styles.editBtn} onPress={() => openEdit(item)}><Text style={styles.editBtnText}>✏️ تعديل</Text></TouchableOpacity>
-                <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item)}><Text style={styles.deleteBtnText}>🗑️ حذف</Text></TouchableOpacity>
+                <TouchableOpacity style={styles.editBtn} onPress={() => openEdit(item as any)}><Text style={styles.editBtnText}>✏️ تعديل</Text></TouchableOpacity>
+                <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item as any)}><Text style={styles.deleteBtnText}>🗑️ حذف</Text></TouchableOpacity>
               </View>
             </TouchableOpacity>
           )}

@@ -81,3 +81,22 @@ export function useLocalTable<T>(tableName: string) {
 }
 
 export default LocalStore;
+
+export const YEMENI_CHART_OF_ACCOUNTS = {
+  groups: [
+    { code: '1', name: 'الأصول', type: 'أصل' },
+    { code: '2', name: 'الخصوم', type: 'خصم' },
+    { code: '3', name: 'حقوق الملكية', type: 'ملكية' },
+    { code: '4', name: 'الإيرادات', type: 'إيراد' },
+    { code: '5', name: 'المصروفات', type: 'مصروف' },
+  ],
+  defaultAccounts: [
+    { code: '101', name: 'الصندوق', type: 'أصل' },
+    { code: '102', name: 'البنوك', type: 'أصل' },
+    { code: '103', name: 'العملاء', type: 'أصل' },
+    { code: '201', name: 'الموردين', type: 'خصم' },
+    { code: '301', name: 'رأس المال', type: 'ملكية' },
+    { code: '401', name: 'المبيعات', type: 'إيراد' },
+    { code: '501', name: 'المشتريات', type: 'مصروف' },
+  ]
+};

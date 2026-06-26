@@ -224,7 +224,7 @@ export default function AccountsScreen() {
                   </View>
                   <View style={styles.balanceContainer}>
                     <Text style={[styles.balanceValue, { color: (item.balance || 0) >= 0 ? '#10B981' : '#EF4444' }]}>
-                      {(item.balance || 0).toLocaleString()}
+{(item as any).balance}
                     </Text>
                     <Text style={styles.currencyText}>{item.currency}</Text>
                   </View>

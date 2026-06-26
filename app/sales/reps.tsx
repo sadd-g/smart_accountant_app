@@ -106,7 +106,7 @@ export default function SalesRepsScreen() {
           data={filtered}
           keyExtractor={(item: SalesRep) => item.id}
           renderItem={({ item }) => (
-            <TouchableOpacity style={styles.card} onPress={() => openEdit(item)} onLongPress={() => handleDelete(item)}>
+            <TouchableOpacity style={styles.card} onPress={() => openEdit(item as any)} onLongPress={() => handleDelete(item)}>
               <View style={styles.cardHeader}>
                 <Text style={styles.cardIcon}>👨‍💼</Text>
                 <View style={styles.cardInfo}>
