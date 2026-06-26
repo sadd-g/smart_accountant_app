@@ -3,14 +3,14 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-export default function currencyreportsScreen() {
+export default function recurringjournalScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}><Text style={styles.backBtn}>←</Text></TouchableOpacity>
-        <Text style={styles.title}>currency-reports</Text>
+        <Text style={styles.title}>recurring-journal</Text>
         <View style={{ width: 36 }} />
       </View>
       <View style={styles.content}><Text style={styles.icon}>🚧</Text><Text style={styles.text}>قيد التطوير</Text></View>

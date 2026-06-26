@@ -8,7 +8,7 @@ export default function TabLayout() {
       tabBarInactiveTintColor: '#94a3b8',
       tabBarStyle: { backgroundColor: '#16213E', borderTopColor: '#2a3550' },
       headerShown: false,
-      tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+      tabBarLabelStyle: { fontSize: 11 },
     }}>
       <Tabs.Screen name="index" options={{ title: 'الرئيسية', tabBarIcon: ({ color }) => <Text style={{ fontSize: 22, color }}>🏠</Text> }} />
     </Tabs>

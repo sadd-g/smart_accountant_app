@@ -1,21 +1,12 @@
-import { useColorScheme } from 'react-native';
-import colors from '../constants/colors';
 import { useApp } from '../context/AppContext';
 
 export function useColors() {
-  const scheme = useColorScheme();
-  let isDark = scheme === 'dark';
-  
-  try {
-    const ctx = useApp();
-    if (ctx && typeof ctx.isDark === 'boolean') {
-      isDark = ctx.isDark;
-    }
-  } catch {}
-  
-  const palette = isDark && 'dark' in colors
-    ? (colors as any).dark
-    : colors.light;
-    
-  return { ...palette, radius: colors.radius };
+  const { isDark } = useApp();
+  return isDark ? {
+    text: '#f1f5f9', accent: '#D4AF37', background: '#0A1128',
+    card: '#16213E', border: '#2a3550', mutedForeground: '#94a3b8',
+  } : {
+    text: '#1a1a2e', accent: '#D4AF37', background: '#f8f9fb',
+    card: '#ffffff', border: '#e5e7eb', mutedForeground: '#6b7280',
+  };
 }

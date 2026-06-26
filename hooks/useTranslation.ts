@@ -1,29 +1,21 @@
 import { useState, useEffect } from 'react';
-import { getLanguage, setLanguage, onLanguageChange } from './useLocalStore';
-import { translations } from '../constants/i18n';
+
+let currentLang: 'ar' | 'en' = 'ar';
+let listeners: Function[] = [];
 
 export function useTranslation() {
-  const [lang, setLang] = useState(getLanguage());
+  const [lang, setLang] = useState(currentLang);
 
   useEffect(() => {
-    const unsubscribe = onLanguageChange((newLang: 'ar' | 'en') => {
-      setLang(newLang);
-    });
-    return unsubscribe;
+    const fn = (l: string) => setLang(l as 'ar' | 'en');
+    listeners.push(fn);
+    return () => { listeners = listeners.filter(l => l !== fn); };
   }, []);
 
-  const t = (key: string): string => {
-    const keys = key.split('.');
-    let value: any = translations[lang];
-    for (const k of keys) {
-      value = value?.[k];
-    }
-    return value || key;
+  const changeLanguage = (l: 'ar' | 'en') => {
+    currentLang = l;
+    listeners.forEach(fn => fn(l));
   };
 
-  const changeLanguage = (newLang: 'ar' | 'en') => {
-    setLanguage(newLang);
-  };
-
-  return { t, lang, changeLanguage, isRTL: lang === 'ar' };
+  return { lang, changeLanguage };
 }

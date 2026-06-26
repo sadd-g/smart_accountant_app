@@ -17,11 +17,10 @@ export const PickerModal: React.FC<PickerModalProps> = ({
   displayField = 'name', subField = 'code', onSelect, onClose
 }) => {
   const [search, setSearch] = useState('');
-  
-  const filtered = data.filter(item => {
-    const display = item[displayField] || '';
-    const sub = item[subField] || '';
-    return display.includes(search) || sub.includes(search);
+  const filtered = (data || []).filter(item => {
+    const d = item[displayField] || '';
+    const s = item[subField] || '';
+    return d.includes(search) || s.includes(search);
   });
 
   return (
