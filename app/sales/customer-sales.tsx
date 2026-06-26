@@ -1,23 +1,36 @@
-import { Stack } from 'expo-router';
 import React from 'react';
-import { View } from 'react-native';
-import ListScreen, { ListItem } from '../../components/ListScreen';
-import { useApp } from '../../context/AppContext';
-import { useDatabase } from '../../context/DatabaseContext';
-import { useColors } from '../../hooks/useColors';
+import { View, Text, StyleSheet, TouchableOpacity, StatusBar } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function CustomerSalesScreen() {
-  const colors = useColors();
-  const { isRTL } = useApp();
-  const { customers, salesInvoices } = useDatabase();
-  const listData: ListItem[] = customers.map(c => {
-    const total = salesInvoices.filter(i => i.customerId === c.id).reduce((s, i) => s + i.total, 0);
-    return { id: c.id, primary: isRTL ? c.nameAr : c.name, secondary: c.phone, badge: total.toLocaleString(), badgeColor: colors.section3 };
-  });
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  
   return (
-    <View style={{ flex: 1 }}>
-      <Stack.Screen options={{ title: isRTL ? 'مبيعات العملاء' : 'Customer Sales', headerStyle: { backgroundColor: colors.section3 }, headerTintColor: '#fff' }} />
-      <ListScreen title="" data={listData} onAdd={() => {}} onEdit={() => {}} onDelete={() => {}} accentColor={colors.section3} emptyText={isRTL ? 'لا توجد بيانات' : 'No data'} />
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="light-content" />
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={styles.backBtn}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>customer-sales</Text>
+        <View style={{ width: 36 }} />
+      </View>
+      <View style={styles.content}>
+        <Text style={styles.icon}>🚧</Text>
+        <Text style={styles.text}>قيد التطوير</Text>
+      </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#0A1128' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
+  backBtn: { fontSize: 24, color: '#D4AF37', fontWeight: 'bold' },
+  title: { fontSize: 18, fontWeight: 'bold', color: '#FFFFFF' },
+  content: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  icon: { fontSize: 64, marginBottom: 16 },
+  text: { color: '#FFFFFF', fontSize: 18, fontWeight: 'bold' },
+});

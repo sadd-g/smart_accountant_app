@@ -1,24 +1,36 @@
-import { Stack } from 'expo-router';
 import React from 'react';
-import { View } from 'react-native';
-import ListScreen, { ListItem } from '../../components/ListScreen';
-import { useApp } from '../../context/AppContext';
-import { useDatabase } from '../../context/DatabaseContext';
-import { useColors } from '../../hooks/useColors';
+import { View, Text, StyleSheet, TouchableOpacity, StatusBar } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function SlowMovingScreen() {
-  const colors = useColors();
-  const { isRTL } = useApp();
-  const { items } = useDatabase();
-  const slowItems = items.filter(i => i.quantity > 0 && i.quantity <= i.minQuantity * 2);
-  const listData: ListItem[] = slowItems.map(i => ({
-    id: i.id, primary: isRTL ? i.nameAr : i.name,
-    secondary: `${isRTL ? 'الكمية' : 'Qty'}: ${i.quantity}`, badge: isRTL ? 'بطيء' : 'Slow', badgeColor: colors.warning,
-  }));
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  
   return (
-    <View style={{ flex: 1 }}>
-      <Stack.Screen options={{ title: isRTL ? 'الأصناف بطيئة الحركة' : 'Slow Moving Items', headerStyle: { backgroundColor: colors.section2 }, headerTintColor: '#fff' }} />
-      <ListScreen title="" data={listData} onAdd={() => {}} onEdit={() => {}} onDelete={() => {}} accentColor={colors.section2} emptyText={isRTL ? 'لا توجد أصناف بطيئة' : 'No slow moving items'} />
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="light-content" />
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={styles.backBtn}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>slow-moving</Text>
+        <View style={{ width: 36 }} />
+      </View>
+      <View style={styles.content}>
+        <Text style={styles.icon}>🚧</Text>
+        <Text style={styles.text}>قيد التطوير</Text>
+      </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#0A1128' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
+  backBtn: { fontSize: 24, color: '#D4AF37', fontWeight: 'bold' },
+  title: { fontSize: 18, fontWeight: 'bold', color: '#FFFFFF' },
+  content: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  icon: { fontSize: 64, marginBottom: 16 },
+  text: { color: '#FFFFFF', fontSize: 18, fontWeight: 'bold' },
+});

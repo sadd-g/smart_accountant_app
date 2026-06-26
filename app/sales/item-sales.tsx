@@ -1,28 +1,36 @@
-import { Stack } from 'expo-router';
 import React from 'react';
-import { View } from 'react-native';
-import ListScreen, { ListItem } from '../../components/ListScreen';
-import { useApp } from '../../context/AppContext';
-import { useDatabase } from '../../context/DatabaseContext';
-import { useColors } from '../../hooks/useColors';
+import { View, Text, StyleSheet, TouchableOpacity, StatusBar } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function ItemSalesScreen() {
-  const colors = useColors();
-  const { isRTL } = useApp();
-  const { items, salesInvoices } = useDatabase();
-  const listData: ListItem[] = items.map(item => {
-    let totalQty = 0, totalValue = 0;
-    salesInvoices.forEach(inv => {
-      inv.items.forEach(line => {
-        if (line.itemId === item.id) { totalQty += line.qty; totalValue += line.total; }
-      });
-    });
-    return { id: item.id, primary: isRTL ? item.nameAr : item.name, secondary: `${isRTL ? 'الكمية المباعة' : 'Sold Qty'}: ${totalQty}`, badge: totalValue.toLocaleString(), badgeColor: colors.section3 };
-  });
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  
   return (
-    <View style={{ flex: 1 }}>
-      <Stack.Screen options={{ title: isRTL ? 'مبيعات الأصناف' : 'Item Sales', headerStyle: { backgroundColor: colors.section3 }, headerTintColor: '#fff' }} />
-      <ListScreen title="" data={listData} onAdd={() => {}} onEdit={() => {}} onDelete={() => {}} accentColor={colors.section3} emptyText={isRTL ? 'لا توجد بيانات' : 'No data'} />
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="light-content" />
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={styles.backBtn}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>item-sales</Text>
+        <View style={{ width: 36 }} />
+      </View>
+      <View style={styles.content}>
+        <Text style={styles.icon}>🚧</Text>
+        <Text style={styles.text}>قيد التطوير</Text>
+      </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#0A1128' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
+  backBtn: { fontSize: 24, color: '#D4AF37', fontWeight: 'bold' },
+  title: { fontSize: 18, fontWeight: 'bold', color: '#FFFFFF' },
+  content: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  icon: { fontSize: 64, marginBottom: 16 },
+  text: { color: '#FFFFFF', fontSize: 18, fontWeight: 'bold' },
+});
