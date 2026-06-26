@@ -183,3 +183,23 @@ export function useLocalTable<T>(tableName: string) {
 }
 
 export default LocalStore;
+
+// إدارة اللغة
+let currentLanguage: 'ar' | 'en' = 'ar';
+let languageListeners: Function[] = [];
+
+export function getLanguage(): 'ar' | 'en' {
+  return currentLanguage;
+}
+
+export function setLanguage(lang: 'ar' | 'en') {
+  currentLanguage = lang;
+  languageListeners.forEach(cb => cb(lang));
+}
+
+export function onLanguageChange(callback: Function) {
+  languageListeners.push(callback);
+  return () => {
+    languageListeners = languageListeners.filter(cb => cb !== callback);
+  };
+}
