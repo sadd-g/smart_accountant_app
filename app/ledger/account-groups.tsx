@@ -119,7 +119,7 @@ export default function AccountGroupsScreen() {
           data={filteredGroups}
           keyExtractor={(item: AccountGroup) => item.id}
           renderItem={({ item }: { item: AccountGroup }) => (
-            <TouchableOpacity style={styles.groupCard} onPress={() => openEdit(item as any)} onLongPress={() => handleDelete(item)}>
+            <TouchableOpacity style={styles.groupCard} onPress={() => openEdit(item)} onLongPress={() => handleDelete(item)}>
               <View style={[styles.typeBar, { backgroundColor: getTypeColor(item.type) }]} />
               <View style={styles.groupContent}>
                 <View style={styles.groupHeader}>
@@ -137,10 +137,10 @@ export default function AccountGroupsScreen() {
                     <Text style={styles.statLabel}>حساب</Text>
                   </View>
                   <View style={styles.actionButtons}>
-                    <TouchableOpacity style={styles.editBtn} onPress={() => openEdit(item as any)}>
+                    <TouchableOpacity style={styles.editBtn} onPress={() => openEdit(item)}>
                       <Text style={styles.editBtnText}>✏️ تعديل</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item as any)}>
+                    <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item)}>
                       <Text style={styles.deleteBtnText}>🗑️</Text>
                     </TouchableOpacity>
                   </View>

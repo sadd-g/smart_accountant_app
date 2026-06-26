@@ -100,7 +100,7 @@ export default function CashBoxesScreen() {
                 </View>
                 <View style={styles.balanceContainer}>
                   <Text style={[styles.balanceValue, { color: (item.balance || 0) >= 0 ? '#10B981' : '#EF4444' }]}>
-{(item as any).balance} ر.س
+                    {(item.balance || 0).toLocaleString()} ﷼
                   </Text>
                 </View>
               </View>
@@ -108,7 +108,7 @@ export default function CashBoxesScreen() {
                 <TouchableOpacity style={styles.actionBtn} onPress={() => { setFormData({ name: item.name, currency: item.currency, balance: item.balance?.toString() }); setSelectedBox(item); setEditMode(true); setShowModal(true); }}>
                   <Text style={styles.actionBtnText}>✏️ تعديل</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.actionBtnDel} onPress={() => handleDelete(item as any)}>
+                <TouchableOpacity style={styles.actionBtnDel} onPress={() => handleDelete(item)}>
                   <Text style={styles.actionBtnText}>🗑️ حذف</Text>
                 </TouchableOpacity>
               </View>

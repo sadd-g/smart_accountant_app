@@ -1,18 +1,14 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, StatusBar } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-export default function bankpaymentScreen() {
+export default function Screen() {
   const router = useRouter(); const insets = useSafeAreaInsets();
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={styles.header}><TouchableOpacity onPress={() => router.back()}><Text style={styles.backBtn}>←</Text></TouchableOpacity><Text style={styles.title}>bank-payment</Text><View style={{width:36}}/></View>
-      <View style={styles.content}><Text style={styles.icon}>🧾</Text><Text style={styles.text}>تم دمجها مع سندات القبض والصرف الموحدة</Text></View>
+    <View style={[styles.c,{paddingTop:insets.top}]}><StatusBar barStyle="light-content"/>
+      <View style={styles.h}><TouchableOpacity onPress={()=>router.back()} style={styles.b}><Text style={styles.bt}>←</Text></TouchableOpacity><Text style={styles.t}>📤 سند صرف بنكي</Text><View style={{width:40}}/></View>
+      <View style={styles.cc}><Text style={styles.i}>🚧</Text><Text style={styles.tt}>سند صرف بنكي</Text><Text style={styles.st}>قيد التطوير</Text></View>
     </View>
   );
 }
-const styles = StyleSheet.create({
-  container:{flex:1,backgroundColor:'#0A1128'},header:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',paddingHorizontal:16,paddingVertical:12},backBtn:{fontSize:24,color:'#D4AF37',fontWeight:'bold'},title:{fontSize:18,fontWeight:'bold',color:'#FFFFFF'},
-  content:{flex:1,justifyContent:'center',alignItems:'center',padding:20},icon:{fontSize:48,marginBottom:12},text:{color:'#94a3b8',fontSize:14,textAlign:'center'},
-});
+const styles=StyleSheet.create({c:{flex:1,backgroundColor:'#0A1128'},h:{flexDirection:'row',alignItems:'center',paddingHorizontal:16,paddingVertical:14},b:{width:40,height:40,borderRadius:20,backgroundColor:'#16213E',justifyContent:'center',alignItems:'center',borderWidth:1,borderColor:'#2a3550'},bt:{fontSize:20,color:'#D4AF37',fontWeight:'bold'},t:{flex:1,fontSize:18,fontWeight:'bold',color:'#FFF',textAlign:'center'},cc:{flex:1,justifyContent:'center',alignItems:'center'},i:{fontSize:64,marginBottom:16},tt:{color:'#FFF',fontSize:18,fontWeight:'bold'},st:{color:'#94a3b8',fontSize:14,marginTop:8}});
