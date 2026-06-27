@@ -1,57 +1,104 @@
-import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalTable } from '../../hooks/useLocalStore';
 
 export default function DashboardScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { data: accounts } = useLocalTable('accounts');
-  const { data: customers } = useLocalTable('customers');
-  const { data: invoices } = useLocalTable('salesInvoices');
-  const { data: cashBoxes } = useLocalTable('cashBoxes');
-  const totalSales = (invoices||[]).reduce((s,i)=>s+(i.total||0),0);
-  const totalCash = (cashBoxes||[]).reduce((s,c)=>s+(c.balance||0),0);
+
+  const mainSections = [
+    { icon: '📚', label: 'دفتر الأستاذ', desc: 'الحسابات والقيود اليومية', route: '/ledger', color: '#D4AF37' },
+    { icon: '📦', label: 'المخزون والمشتريات', desc: 'الموردين والأصناف والمستودعات', route: '/inventory', color: '#3B82F6' },
+    { icon: '💰', label: 'المبيعات والعملاء', desc: 'فواتير المبيعات والعملاء', route: '/sales', color: '#10B981' },
+    { icon: '📊', label: 'التقارير', desc: 'التقارير المالية والإحصائية', route: '/reports', color: '#7C3AED' },
+    { icon: '🎤', label: 'الأوامر الصوتية', desc: 'تحدث لإنجاز معاملاتك', route: '/voice', color: '#F59E0B' },
+    { icon: '⚙️', label: 'الإعدادات', desc: 'تخصيص النظام', route: '/settings', color: '#6B7280' },
+  ];
+
+  const quickActions = [
+    { icon: '📄', label: 'فاتورة مبيعات', route: '/sales/sales-invoice', color: '#10B981' },
+    { icon: '📋', label: 'فاتورة مشتريات', route: '/inventory/purchase-invoice', color: '#3B82F6' },
+    { icon: '📝', label: 'قيد يومية', route: '/ledger/journal-entry', color: '#7C3AED' },
+    { icon: '👤', label: 'عميل جديد', route: '/sales/customers', color: '#D4AF37' },
+  ];
 
   return (
-    <View style={[styles.container,{paddingTop:insets.top}]}><StatusBar barStyle="light-content"/>
-      <View style={styles.header}><Text style={styles.welcome}>💎 دفتر المحاسب الذكي</Text><TouchableOpacity onPress={()=>router.push('/settings')}><Text style={styles.settingsIcon}>⚙️</Text></TouchableOpacity></View>
-      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-        <View style={styles.stats}>
-          <View style={styles.stat}><Text style={styles.statVal}>💰 {totalSales.toLocaleString()}</Text><Text style={styles.statLbl}>المبيعات</Text></View>
-          <View style={styles.stat}><Text style={styles.statVal}>📚 {accounts.length}</Text><Text style={styles.statLbl}>حسابات</Text></View>
-          <View style={styles.stat}><Text style={styles.statVal}>👥 {customers.length}</Text><Text style={styles.statLbl}>عملاء</Text></View>
-          <View style={styles.stat}><Text style={styles.statVal}>💵 {totalCash.toLocaleString()}</Text><Text style={styles.statLbl}>نقدية</Text></View>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="light-content" />
+      
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.welcome}>💎 دفتر المحاسب الذكي</Text>
+          <Text style={styles.subtitle}>النظام المحاسبي المتكامل</Text>
         </View>
-        <Text style={styles.secTitle}>⚡ إجراءات سريعة</Text>
-        <View style={styles.quickRow}>
-          {[{icon:'📄',label:'فاتورة مبيعات',route:'/sales/sales-invoice'},{icon:'📋',label:'فاتورة مشتريات',route:'/inventory/purchase-invoice'},{icon:'📝',label:'قيد يومية',route:'/ledger/journal-entry'},{icon:'🧾',label:'سند قبض/صرف',route:'/ledger/vouchers'}].map((q,i)=>
-            <TouchableOpacity key={i} style={styles.quickCard} onPress={()=>router.push(q.route)}><Text style={styles.quickIcon}>{q.icon}</Text><Text style={styles.quickLabel}>{q.label}</Text></TouchableOpacity>
-          )}
-        </View>
-        <Text style={styles.secTitle}>📊 الأقسام الرئيسية</Text>
-        {[{icon:'📚',label:'دفتر الأستاذ العام',desc:'الحسابات، القيود، السندات',color:'#D4AF37',route:'/ledger/index'},
-          {icon:'📦',label:'المخزون والمشتريات',desc:'الموردين، الأصناف، المستودعات',color:'#3B82F6',route:'/inventory/index'},
-          {icon:'💰',label:'المبيعات والعملاء',desc:'الفواتير، العملاء، المندوبين',color:'#10B981',route:'/sales/index'},
-          {icon:'📊',label:'التقارير والتنبيهات',desc:'جميع التقارير المالية',color:'#7C3AED',route:'/reports/index'}].map((s,i)=>
-          <TouchableOpacity key={i} style={[styles.card,{borderLeftColor:s.color}]} onPress={()=>router.push(s.route)}>
-            <Text style={styles.cardIcon}>{s.icon}</Text><View style={{flex:1}}><Text style={styles.cardLabel}>{s.label}</Text><Text style={styles.cardDesc}>{s.desc}</Text></View><Text style={styles.cardArrow}>→</Text>
+      </View>
+
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <Text style={styles.sectionTitle}>📊 القائمة الرئيسية</Text>
+        
+        {mainSections.map((item, index) => (
+          <TouchableOpacity
+            key={index}
+            style={styles.mainCard}
+            onPress={() => router.push(item.route as any)}
+          >
+            <View style={[styles.iconCircle, { backgroundColor: item.color + '20' }]}>
+              <Text style={styles.mainIcon}>{item.icon}</Text>
+            </View>
+            <View style={styles.cardInfo}>
+              <Text style={styles.cardLabel}>{item.label}</Text>
+              <Text style={styles.cardDesc}>{item.desc}</Text>
+            </View>
+            <Text style={styles.arrow}>→</Text>
           </TouchableOpacity>
-        )}
-        <Text style={styles.secTitle}>⚙️ النظام</Text>
-        {[{icon:'⚙️',label:'الإعدادات',route:'/settings'},{icon:'👑',label:'لوحة المالك',route:'/owner'},{icon:'🎤',label:'الأوامر الصوتية',route:'/voice'},{icon:'💾',label:'النسخ الاحتياطي',route:'/backup'},{icon:'ℹ️',label:'حول التطبيق',route:'/about'},{icon:'🚪',label:'تسجيل الخروج',route:'/login'}].map((l,i)=>
-          <TouchableOpacity key={i} style={styles.sysItem} onPress={()=>router.push(l.route)}><Text style={styles.sysIcon}>{l.icon}</Text><Text style={styles.sysLabel}>{l.label}</Text><Text style={styles.cardArrow}>→</Text></TouchableOpacity>
-        )}
-        <View style={{height:30}}/>
+        ))}
+
+        <Text style={[styles.sectionTitle, { marginTop: 24 }]}>⚡ إجراءات سريعة</Text>
+        <View style={styles.quickGrid}>
+          {quickActions.map((item, index) => (
+            <TouchableOpacity
+              key={index}
+              style={styles.quickCard}
+              onPress={() => router.push(item.route as any)}
+            >
+              <View style={[styles.quickIcon, { backgroundColor: item.color + '20' }]}>
+                <Text style={styles.quickEmoji}>{item.icon}</Text>
+              </View>
+              <Text style={styles.quickLabel}>{item.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <View style={{ height: 32 }} />
       </ScrollView>
     </View>
   );
 }
+
 const styles = StyleSheet.create({
-  container:{flex:1,backgroundColor:'#0A1128'},header:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',paddingHorizontal:18,paddingVertical:14},welcome:{fontSize:19,fontWeight:'bold',color:'#FFF'},settingsIcon:{fontSize:24},
-  scroll:{flex:1,paddingHorizontal:14},stats:{flexDirection:'row',gap:6,marginBottom:16,marginTop:4},stat:{flex:1,backgroundColor:'#16213E',borderRadius:12,padding:12,alignItems:'center',borderWidth:1,borderColor:'#2a3550'},statVal:{fontSize:12,fontWeight:'bold',color:'#D4AF37',marginBottom:3},statLbl:{color:'#94a3b8',fontSize:10},
-  secTitle:{fontSize:14,fontWeight:'bold',color:'#D4AF37',marginBottom:10,marginTop:16},quickRow:{flexDirection:'row',gap:8},quickCard:{flex:1,alignItems:'center'},quickIcon:{fontSize:22,marginBottom:4},quickLabel:{color:'#FFF',fontSize:10,textAlign:'center'},
-  card:{flexDirection:'row',alignItems:'center',backgroundColor:'#16213E',borderRadius:14,padding:16,marginBottom:10,borderLeftWidth:4,borderWidth:1,borderColor:'#2a3550'},cardIcon:{fontSize:28,marginRight:12},cardLabel:{color:'#FFF',fontSize:14,fontWeight:'bold',marginBottom:3},cardDesc:{color:'#94a3b8',fontSize:11},cardArrow:{fontSize:20,color:'#D4AF37',fontWeight:'bold'},
-  sysItem:{flexDirection:'row',alignItems:'center',backgroundColor:'#16213E',borderRadius:12,padding:14,marginBottom:6,borderWidth:1,borderColor:'#2a3550'},sysIcon:{fontSize:18,marginRight:10},sysLabel:{color:'#FFF',fontSize:13,flex:1},
+  container: { flex: 1, backgroundColor: '#0A1128' },
+  header: { paddingHorizontal: 20, paddingVertical: 16 },
+  welcome: { fontSize: 24, fontWeight: 'bold', color: '#FFFFFF' },
+  subtitle: { fontSize: 14, color: '#D4AF37', marginTop: 4 },
+  content: { flex: 1, paddingHorizontal: 16 },
+  sectionTitle: { fontSize: 20, fontWeight: 'bold', color: '#FFFFFF', marginBottom: 16 },
+  mainCard: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#16213E', borderRadius: 16, padding: 16,
+    marginBottom: 10, borderWidth: 1, borderColor: '#2a3550',
+  },
+  iconCircle: { width: 52, height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center', marginRight: 14 },
+  mainIcon: { fontSize: 26 },
+  cardInfo: { flex: 1 },
+  cardLabel: { color: '#FFFFFF', fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
+  cardDesc: { color: '#94a3b8', fontSize: 12 },
+  arrow: { color: '#D4AF37', fontSize: 22, fontWeight: 'bold' },
+  quickGrid: { flexDirection: 'row', justifyContent: 'space-between' },
+  quickCard: {
+    width: '23%', backgroundColor: '#16213E', borderRadius: 16,
+    padding: 14, alignItems: 'center', borderWidth: 1, borderColor: '#2a3550',
+  },
+  quickIcon: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
+  quickEmoji: { fontSize: 20 },
+  quickLabel: { color: '#FFFFFF', fontSize: 11, textAlign: 'center' },
 });

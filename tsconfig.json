@@ -1,16 +1,10 @@
 {
+  "extends": "./tsconfig.paths.json",
   "compilerOptions": {
+    "incremental": true,
+    "tsBuildInfoFile": ".tsbuildinfo",
+    "baseUrl": ".",
     "strict": true,
-    "target": "esnext",
-    "module": "esnext",
-    "moduleResolution": "bundler",
-    "jsx": "react-jsx",
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "noEmit": true,
     "paths": {
       "@/*": [
         "./*"
@@ -19,16 +13,11 @@
   },
   "include": [
     "**/*.ts",
-    "**/*.tsx",
-    "*.ts",
-    "*.tsx"
+    "**/*.tsx"
   ],
-  "exclude": [
-    "node_modules",
-    ".expo",
-    "dist",
-    "android",
-    "ios"
-  ],
-  "extends": "expo/tsconfig.base"
+  "references": [
+    {
+      "path": "../../lib/api-client-react"
+    }
+  ]
 }
