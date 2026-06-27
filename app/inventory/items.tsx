@@ -1,3 +1,4 @@
+import { ControlButtons, ControlHeader } from '../../src/components/ui/ControlButtons';
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, StatusBar, Alert, Modal, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
