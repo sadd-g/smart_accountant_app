@@ -9,6 +9,7 @@ import { PickerModal } from '../../src/components/ui/PickerModal';
 export default function PurchaseInvoiceScreen() {
   const router = useRouter(); const insets = useSafeAreaInsets();
   const { data: invoices, add, remove, update } = useLocalTable('purchaseInvoices');
+  const { data: accounts } = useLocalTable('accounts');
   const { data: suppliers } = useLocalTable('suppliers');
   const { data: items } = useLocalTable('items');
   const { data: warehouses } = useLocalTable('warehouses');
