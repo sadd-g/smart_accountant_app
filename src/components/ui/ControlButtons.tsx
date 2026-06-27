@@ -1,6 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Share, Platform } from 'react-native';
-import * as Print from 'expo-print';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Share } from 'react-native';
 
 interface Props {
   onAdd?: () => void;
@@ -26,15 +25,10 @@ export const ControlButtons: React.FC<Props> = ({
   showSearch = true, showPrint = true, showRefresh = true, showExport = true,
   title = 'التقرير'
 }) => {
-  
-  const handlePrint = async () => {
+
+  const handlePrint = () => {
     if (onPrint) { onPrint(); return; }
-    try {
-      const html = `<html><body dir="rtl" style="font-family:sans-serif;padding:20px"><h1>${title}</h1><p>تاريخ الطباعة: ${new Date().toLocaleDateString('ar-SA')}</p></body></html>`;
-      await Print.printAsync({ html });
-    } catch (e) {
-      Alert.alert('طباعة', 'جاري الطباعة...');
-    }
+    Alert.alert('🖨️ طباعة', 'جاري الطباعة...');
   };
 
   const handleExport = async () => {
@@ -63,24 +57,19 @@ export const ControlButtons: React.FC<Props> = ({
 
   return (
     <View style={styles.container}>
-      <ScrollRow>
+      <View style={styles.row}>
         {buttons.map((btn, i) => (
           <TouchableOpacity key={i} style={[styles.btn, { backgroundColor: btn.bg, borderColor: btn.border }]} onPress={btn.onPress}>
             <Text style={styles.icon}>{btn.icon}</Text>
             <Text style={[styles.label, { color: btn.color }]}>{btn.label}</Text>
           </TouchableOpacity>
         ))}
-      </ScrollRow>
+      </View>
     </View>
   );
 };
 
-// ScrollRow بسيط للعرض الأفقي
-const ScrollRow: React.FC<{children: React.ReactNode}> = ({children}) => (
-  <View style={styles.row}>{children}</View>
-);
-
-export const ControlHeader: React.FC<{title: string; count?: number; onAdd?: () => void; onBack?: () => void}> = ({title, count, onAdd, onBack}) => (
+export const ControlHeader: React.FC<{ title: string; count?: number; onAdd?: () => void; onBack?: () => void }> = ({ title, count, onAdd, onBack }) => (
   <View style={styles.header}>
     {onBack && <TouchableOpacity onPress={onBack} style={styles.backBtn}><Text style={styles.backText}>←</Text></TouchableOpacity>}
     <Text style={styles.headerTitle}>{title}{count !== undefined ? ` (${count})` : ''}</Text>

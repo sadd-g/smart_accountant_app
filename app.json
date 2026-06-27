@@ -21,10 +21,8 @@
     "web": {
       "bundler": "metro"
     },
-    "extra": {
-      "eas": {
-        "projectId": "a006db61-d5b5-48ad-a92f-e0cd3c37ab9b"
-      }
-    }
+    "plugins": [
+      "expo-local-authentication"
+    ]
   }
 }

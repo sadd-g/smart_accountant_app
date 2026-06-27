@@ -39,7 +39,7 @@ export default function LoginScreen() {
       
       setTimeout(() => {
         setIsLoading(false);
-        router.replace('/(tabs)');
+        router.replace('/home');
       }, 1000);
     } else {
       setError('الرجاء إدخال رمز PIN كامل');
