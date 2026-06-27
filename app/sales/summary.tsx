@@ -1,55 +1,26 @@
-import { Ionicons } from '@expo/vector-icons';
-import { Stack } from 'expo-router';
 import React from 'react';
-import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, StatusBar, Alert } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useApp } from '../../context/AppContext';
-import { useDatabase } from '../../context/DatabaseContext';
-import { useColors } from '../../hooks/useColors';
+import { useLocalTable } from '../../hooks/useLocalStore';
 
 export default function SalesSummaryScreen() {
-  const colors = useColors();
-  const insets = useSafeAreaInsets();
-  const { isRTL } = useApp();
-  const { salesInvoices } = useDatabase();
-  const color = colors.section3;
-
-  const totalSales = salesInvoices.reduce((s, i) => s + i.total, 0);
-  const totalPaid = salesInvoices.reduce((s, i) => s + i.paid, 0);
-  const totalRemaining = salesInvoices.reduce((s, i) => s + i.remaining, 0);
-  const cashSales = salesInvoices.filter(i => i.paymentType === 'cash').reduce((s, i) => s + i.total, 0);
-  const creditSales = salesInvoices.filter(i => i.paymentType === 'credit').reduce((s, i) => s + i.total, 0);
-
-  const cards = [
-    { label: isRTL ? 'إجمالي المبيعات' : 'Total Sales', value: totalSales.toFixed(2), color },
-    { label: isRTL ? 'المحصّل' : 'Collected', value: totalPaid.toFixed(2), color: colors.success },
-    { label: isRTL ? 'المتبقي' : 'Remaining', value: totalRemaining.toFixed(2), color: colors.warning },
-    { label: isRTL ? 'نقدي' : 'Cash', value: cashSales.toFixed(2), color: colors.info },
-    { label: isRTL ? 'آجل' : 'Credit', value: creditSales.toFixed(2), color: colors.destructive },
-    { label: isRTL ? 'عدد الفواتير' : 'Invoice Count', value: salesInvoices.length.toString(), color: colors.section1 },
-  ];
+  const router = useRouter(); const insets = useSafeAreaInsets();
+  const { data: invoices } = useLocalTable('salesInvoices');
+  const totalSales = (invoices||[]).reduce((s:number,i:any)=>s+(i.total||0),0);
+  const totalCash = (invoices||[]).filter((i:any)=>i.type==='cash').reduce((s:number,i:any)=>s+(i.total||0),0);
+  const totalCredit = (invoices||[]).filter((i:any)=>i.type==='credit').reduce((s:number,i:any)=>s+(i.total||0),0);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Stack.Screen options={{ title: isRTL ? 'ملخص المبيعات' : 'Sales Summary', headerStyle: { backgroundColor: color }, headerTintColor: '#fff' }} />
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 0) + 20 }}>
-        <View style={styles.grid}>
-          {cards.map((card, i) => (
-            <View key={i} style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <Text style={[styles.cardValue, { color: card.color }]}>{card.value}</Text>
-              <Text style={[styles.cardLabel, { color: colors.mutedForeground }]}>{card.label}</Text>
-            </View>
-          ))}
-        </View>
-      </ScrollView>
+    <View style={[st.c,{paddingTop:insets.top}]}><StatusBar barStyle="light-content"/>
+      <View style={st.h}><TouchableOpacity onPress={()=>router.back()}><Text style={st.bt}>←</Text></TouchableOpacity><Text style={st.t}>ملخص المبيعات</Text><TouchableOpacity onPress={()=>Alert.alert('🖨️','جاري الطباعة')}><Text>🖨️</Text></TouchableOpacity></View>
+      <View style={st.ct}>
+        <View style={st.card}><Text style={st.lbl}>إجمالي المبيعات</Text><Text style={[st.val,{color:'#D4AF37'}]}>{totalSales.toLocaleString()} ﷼</Text></View>
+        <View style={st.card}><Text style={st.lbl}>مبيعات نقدي</Text><Text style={[st.val,{color:'#10B981'}]}>{totalCash.toLocaleString()} ﷼</Text></View>
+        <View style={st.card}><Text style={st.lbl}>مبيعات آجل</Text><Text style={[st.val,{color:'#F59E0B'}]}>{totalCredit.toLocaleString()} ﷼</Text></View>
+        <View style={st.card}><Text style={st.lbl}>عدد الفواتير</Text><Text style={[st.val,{color:'#3B82F6'}]}>{invoices.length}</Text></View>
+      </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  card: { width: '47%', borderRadius: 14, borderWidth: 1, padding: 16, alignItems: 'center', gap: 4 },
-  cardValue: { fontSize: 20, fontWeight: '800' },
-  cardLabel: { fontSize: 12, textAlign: 'center' },
-});
+const st=StyleSheet.create({c:{flex:1,backgroundColor:'#0A1128'},h:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',paddingHorizontal:16,paddingVertical:12},bt:{fontSize:24,color:'#D4AF37',fontWeight:'bold'},t:{fontSize:18,fontWeight:'bold',color:'#FFF'},ct:{padding:16,gap:10},card:{backgroundColor:'#16213E',borderRadius:14,padding:20,alignItems:'center',borderWidth:1,borderColor:'#2a3550'},lbl:{color:'#94a3b8',fontSize:14,marginBottom:8},val:{fontSize:24,fontWeight:'bold'}});
