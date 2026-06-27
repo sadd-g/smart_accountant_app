@@ -4,86 +4,36 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalTable } from '../../hooks/useLocalStore';
 
-interface Brand { id: string; name: string; nameEn: string; }
-
 export default function BrandsScreen() {
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const { data: brands, add, remove } = useLocalTable<Brand>('brands');
+  const router = useRouter(); const insets = useSafeAreaInsets();
+  const { data: brands, add, remove } = useLocalTable('brands');
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
-  const [formData, setFormData] = useState({ name: '', nameEn: '' });
+  const [newName, setNewName] = useState('');
+  const filtered = (brands||[]).filter((b:any) => (b.name||'').includes(searchQuery));
 
-  const filtered = brands.filter((b: Brand) => b.name?.includes(searchQuery));
-
-  const handleSave = async () => {
-    if (!formData.name) { Alert.alert('خطأ', 'الرجاء إدخال اسم الماركة'); return; }
-    await add(formData);
-    setShowModal(false); setFormData({ name: '', nameEn: '' });
+  const handleAdd = async () => {
+    if (!newName.trim()) { Alert.alert('خطأ', 'أدخل اسم الماركة'); return; }
+    await add({ name: newName }); setNewName(''); setShowModal(false);
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="light-content" />
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}><Text style={styles.backBtn}>←</Text></TouchableOpacity>
-        <Text style={styles.title}>الماركات ({brands.length})</Text>
-        <TouchableOpacity style={styles.addBtn} onPress={() => setShowModal(true)}><Text style={styles.addBtnText}>+</Text></TouchableOpacity>
-      </View>
-      <View style={styles.controlBar}>
-        <TextInput style={styles.searchInput} placeholder="🔍 بحث..." placeholderTextColor="#94a3b8" value={searchQuery} onChangeText={setSearchQuery} />
-      </View>
-      {filtered.length === 0 ? (
-        <View style={styles.empty}><Text style={styles.emptyIcon}>⭐</Text><Text style={styles.emptyText}>لا توجد ماركات</Text></View>
-      ) : (
-        <FlatList data={filtered} keyExtractor={(i: Brand) => i.id} renderItem={({ item }) => (
-          <TouchableOpacity style={styles.card} onLongPress={() => { Alert.alert('حذف', `حذف "${item.name}"؟`, [{ text: 'حذف', style: 'destructive', onPress: () => remove(item.id) }, { text: 'إلغاء' }]); }}>
-            <Text style={styles.cardName}>{item.name}</Text>
-            {item.nameEn ? <Text style={styles.cardEn}>{item.nameEn}</Text> : null}
+    <View style={[st.c,{paddingTop:insets.top}]}><StatusBar barStyle="light-content"/>
+      <View style={st.h}><TouchableOpacity onPress={()=>router.back()} style={st.b}><Text style={st.bt}>←</Text></TouchableOpacity><Text style={st.t}>⭐ الماركات ({brands.length})</Text><TouchableOpacity style={st.ab} onPress={()=>setShowModal(true)}><Text style={st.at}>+</Text></TouchableOpacity></View>
+      <TextInput style={st.si} placeholder="🔍 بحث..." placeholderTextColor="#94a3b8" value={searchQuery} onChangeText={setSearchQuery}/>
+      {filtered.length===0?<View style={st.e}><Text style={st.ei}>⭐</Text><Text style={st.et}>لا توجد ماركات</Text></View>:
+        <FlatList data={filtered} keyExtractor={(i:any)=>i.id} renderItem={({item}:any)=>(
+          <TouchableOpacity style={st.rc} onLongPress={()=>Alert.alert('حذف',`حذف "${item.name}"؟`,[{text:'حذف',style:'destructive',onPress:()=>remove(item.id)},{text:'إلغاء'}])}>
+            <Text style={st.rn}>⭐ {item.name}</Text>
           </TouchableOpacity>
-        )} contentContainerStyle={{ padding: 16 }} />
-      )}
+        )} contentContainerStyle={{padding:16}}/>
+      }
       <Modal visible={showModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}><Text style={styles.modalTitle}>إضافة ماركة</Text><TouchableOpacity onPress={() => setShowModal(false)}><Text style={styles.modalClose}>✕</Text></TouchableOpacity></View>
-            <View style={styles.modalBody}>
-              <Text style={styles.fieldLabel}>اسم الماركة *</Text>
-              <TextInput style={styles.fieldInput} value={formData.name} onChangeText={(v) => setFormData({ ...formData, name: v })} placeholder="اسم الماركة" placeholderTextColor="#666" />
-              <Text style={styles.fieldLabel}>الاسم بالإنجليزي</Text>
-              <TextInput style={styles.fieldInput} value={formData.nameEn} onChangeText={(v) => setFormData({ ...formData, nameEn: v })} placeholder="Brand name" placeholderTextColor="#666" />
-              <TouchableOpacity style={styles.saveModalBtn} onPress={handleSave}><Text style={styles.saveModalBtnText}>💾 حفظ</Text></TouchableOpacity>
-            </View>
-          </View>
-        </View>
+        <View style={st.mo}><View style={st.mc}><View style={st.mh}><Text style={st.mt}>إضافة ماركة</Text><TouchableOpacity onPress={()=>setShowModal(false)}><Text style={st.mx}>✕</Text></TouchableOpacity></View>
+          <View style={st.mb}><Text style={st.fl}>اسم الماركة</Text><TextInput style={st.fi} value={newName} onChangeText={setNewName} placeholder="اسم الماركة" placeholderTextColor="#666"/><TouchableOpacity style={st.sb} onPress={handleAdd}><Text style={st.sbt}>💾 حفظ</Text></TouchableOpacity></View>
+        </View></View>
       </Modal>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0A1128' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
-  backBtn: { fontSize: 24, color: '#D4AF37', fontWeight: 'bold' },
-  title: { fontSize: 18, fontWeight: 'bold', color: '#FFFFFF' },
-  addBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#D4AF37' + '20', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#D4AF37' },
-  addBtnText: { fontSize: 20, color: '#D4AF37', fontWeight: 'bold' },
-  controlBar: { flexDirection: 'row', paddingHorizontal: 16, marginBottom: 12 },
-  searchInput: { flex: 1, backgroundColor: '#16213E', borderRadius: 10, padding: 10, color: '#FFFFFF', borderWidth: 1, borderColor: '#2a3550', textAlign: 'right', fontSize: 14 },
-  empty: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  emptyIcon: { fontSize: 48, marginBottom: 12 },
-  emptyText: { color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' },
-  card: { backgroundColor: '#16213E', borderRadius: 12, padding: 14, marginBottom: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: '#2a3550' },
-  cardName: { color: '#FFFFFF', fontSize: 15, fontWeight: 'bold' },
-  cardEn: { color: '#94a3b8', fontSize: 11 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: '#16213E', borderTopLeftRadius: 20, borderTopRightRadius: 20 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#2a3550' },
-  modalTitle: { color: '#D4AF37', fontSize: 18, fontWeight: 'bold' },
-  modalClose: { color: '#EF4444', fontSize: 22, fontWeight: 'bold' },
-  modalBody: { padding: 16 },
-  fieldLabel: { color: '#94a3b8', fontSize: 13, marginBottom: 6, marginTop: 12 },
-  fieldInput: { backgroundColor: '#0A1128', borderRadius: 10, padding: 12, color: '#FFFFFF', borderWidth: 1, borderColor: '#2a3550', fontSize: 14 },
-  saveModalBtn: { backgroundColor: '#D4AF37', borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 20 },
-  saveModalBtnText: { color: '#0A1128', fontSize: 16, fontWeight: 'bold' },
-});
+const st=StyleSheet.create({c:{flex:1,backgroundColor:'#0A1128'},h:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',paddingHorizontal:16,paddingVertical:12},b:{width:36,height:36,borderRadius:18,backgroundColor:'#16213E',justifyContent:'center',alignItems:'center',borderWidth:1,borderColor:'#2a3550'},bt:{fontSize:20,color:'#D4AF37'},t:{fontSize:18,fontWeight:'bold',color:'#FFF'},ab:{width:36,height:36,borderRadius:18,backgroundColor:'#D4AF37'+'20',justifyContent:'center',alignItems:'center',borderWidth:1,borderColor:'#D4AF37'},at:{fontSize:20,color:'#D4AF37',fontWeight:'bold'},si:{marginHorizontal:16,marginBottom:12,padding:12,backgroundColor:'#16213E',borderRadius:10,color:'#FFF',borderWidth:1,borderColor:'#2a3550',textAlign:'right',fontSize:14},e:{flex:1,justifyContent:'center',alignItems:'center'},ei:{fontSize:48,marginBottom:12},et:{color:'#FFF',fontSize:16},rc:{backgroundColor:'#16213E',borderRadius:12,padding:14,marginBottom:8,marginHorizontal:16,borderWidth:1,borderColor:'#2a3550'},rn:{color:'#FFF',fontSize:14,fontWeight:'bold'},mo:{flex:1,backgroundColor:'rgba(0,0,0,0.7)',justifyContent:'flex-end'},mc:{backgroundColor:'#16213E',borderTopLeftRadius:20,borderTopRightRadius:20},mh:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',padding:16,borderBottomWidth:1,borderBottomColor:'#2a3550'},mt:{color:'#D4AF37',fontSize:18,fontWeight:'bold'},mx:{color:'#EF4444',fontSize:22,fontWeight:'bold'},mb:{padding:16},fl:{color:'#94a3b8',fontSize:13,marginBottom:6,marginTop:12},fi:{backgroundColor:'#0A1128',borderRadius:10,padding:12,color:'#FFF',borderWidth:1,borderColor:'#2a3550',fontSize:14},sb:{backgroundColor:'#D4AF37',borderRadius:12,padding:14,alignItems:'center',marginTop:20},sbt:{color:'#0A1128',fontSize:16,fontWeight:'bold'}});

@@ -1,149 +1,457 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, StatusBar, Alert, Modal, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalTable } from '../../hooks/useLocalStore';
-import { PickerModal } from '../../src/components/ui/PickerModal';
+import { useLocalTable, YEMENI_CHART_OF_ACCOUNTS } from '../../hooks/useLocalStore';
+
+interface Account {
+  id: string;
+  code: string;
+  name: string;
+  nameEn: string;
+  type: string;
+  groupId: string;
+  currency: string;
+  balance: number;
+  isMain: boolean;
+  parentId: string | null;
+  createdAt: string;
+}
 
 export default function AccountsScreen() {
-  const router = useRouter(); const insets = useSafeAreaInsets();
-  const { data: accounts, add, remove, update } = useLocalTable('accounts');
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { data: accounts, add, remove, update, reload } = useLocalTable<Account>('accounts');
+  const { data: groups } = useLocalTable('accountGroups');
   const { data: currencies } = useLocalTable('currencies');
+  
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedType, setSelectedType] = useState('الكل');
-  const [showModal, setShowModal] = useState(false);
-  const [editMode, setEditMode] = useState(false);
-  const [selectedAccount, setSelectedAccount] = useState<any>(null);
-  const [parentAccount, setParentAccount] = useState<any>(null);
+  const [selectedGroup, setSelectedGroup] = useState('الكل');
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [isSubAccount, setIsSubAccount] = useState(false);
-  const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
-  const [formData, setFormData] = useState({ name: '', code: '', type: 'أصل', currency: 'YER', balance: '0', parentId: '' });
-  const types = ['الكل', 'أصل', 'خصم', 'ملكية', 'إيراد', 'مصروف'];
 
-  const mainAccounts = accounts.filter((a: any) => !a.parentId);
-  const getSubAccounts = (parentId: string) => accounts.filter((a: any) => a.parentId === parentId);
-  
-  const filtered = accounts.filter((a: any) => {
-    const matchSearch = (a.name || '').includes(searchQuery) || (a.code || '').includes(searchQuery);
-    const matchType = selectedType === 'الكل' || a.type === selectedType;
-    return matchSearch && matchType;
+  // حقول الحساب الجديد
+  const [newAccount, setNewAccount] = useState({
+    name: '',
+    nameEn: '',
+    type: 'أصل',
+    groupId: '',
+    currency: 'YER',
+    balance: '0',
+    isMain: true,
+    parentId: null as string | null,
   });
 
-  const getTypeColor = (t: string) => ({ 'أصل': '#D4AF37', 'خصم': '#EF4444', 'ملكية': '#3B82F6', 'إيراد': '#10B981', 'مصروف': '#F59E0B' }[t] || '#6B7280');
+  const mainTypes = ['أصل', 'خصم', 'ملكية', 'إيراد', 'مصروف'];
+  const currencyOptions = ['YER', 'USD', 'SAR', 'ALL'];
 
-  const handleSave = async () => {
-    if (!formData.name) { Alert.alert('خطأ', 'أدخل اسم الحساب'); return; }
-    const code = formData.code || `${types.indexOf(formData.type)}${(accounts.length + 1).toString().padStart(2, '0')}`;
-    const data = { ...formData, code, balance: parseFloat(formData.balance) || 0, parentId: isSubAccount ? parentAccount?.id || '' : '' };
-    if (editMode && selectedAccount) { await update(selectedAccount.id, data); }
-    else { await add(data); }
-    setShowModal(false); setEditMode(false); setSelectedAccount(null); setIsSubAccount(false); setParentAccount(null);
-  };
-
-  const handleDelete = (account: any) => {
-    const subs = getSubAccounts(account.id);
-    if (subs.length > 0) { Alert.alert('تنبيه', 'لا يمكن حذف حساب يحتوي على حسابات فرعية. احذف الحسابات الفرعية أولاً'); return; }
-    Alert.alert('حذف', `حذف "${account.name}"؟`, [{ text: 'حذف', style: 'destructive', onPress: () => remove(account.id) }, { text: 'إلغاء' }]);
-  };
-
-  const openEdit = (account: any) => {
-    setFormData({ name: account.name, code: account.code, type: account.type, currency: account.currency || 'YER', balance: account.balance?.toString() || '0', parentId: account.parentId || '' });
-    setSelectedAccount(account);
-    setIsSubAccount(!!account.parentId);
-    if (account.parentId) setParentAccount(accounts.find((a: any) => a.id === account.parentId));
-    setEditMode(true);
-    setShowModal(true);
-  };
-
-  const openAddSub = (account: any) => {
-    setFormData({ name: '', code: '', type: account.type, currency: account.currency || 'YER', balance: '0', parentId: account.id });
-    setParentAccount(account);
-    setIsSubAccount(true);
-    setEditMode(false);
-    setSelectedAccount(null);
-    setShowModal(true);
-  };
-
-  // عرض الحسابات الرئيسية مع الفرعية
-  const displayAccounts: any[] = [];
-  const addedSubs = new Set<string>();
-  
-  filtered.forEach((acc: any) => {
-    if (!acc.parentId) {
-      displayAccounts.push(acc);
-      const subs = getSubAccounts(acc.id).filter((s: any) => {
-        const ms = (s.name || '').includes(searchQuery) || (s.code || '').includes(searchQuery);
-        const mt = selectedType === 'الكل' || s.type === selectedType;
-        return ms && mt;
-      });
-      subs.forEach((s: any) => { displayAccounts.push({ ...s, _isSub: true }); addedSubs.add(s.id); });
-    } else if (!addedSubs.has(acc.id)) {
-      displayAccounts.push({ ...acc, _isSub: true });
+  const getTypeColor = (type: string) => {
+    switch(type) {
+      case 'أصل': return '#D4AF37';
+      case 'خصم': return '#EF4444';
+      case 'ملكية': return '#3B82F6';
+      case 'إيراد': return '#10B981';
+      case 'مصروف': return '#F59E0B';
+      default: return '#6B7280';
     }
+  };
+
+  const getTypeIcon = (type: string) => {
+    switch(type) {
+      case 'أصل': return '🏛️';
+      case 'خصم': return '📋';
+      case 'ملكية': return '👑';
+      case 'إيراد': return '💰';
+      case 'مصروف': return '📉';
+      default: return '📄';
+    }
+  };
+
+  const filteredAccounts = accounts.filter((acc: Account) => {
+    const matchesSearch = (acc.name || '').includes(searchQuery) || (acc.code || '').includes(searchQuery);
+    const matchesType = selectedGroup === 'الكل' || acc.type === selectedGroup;
+    return matchesSearch && matchesType;
   });
+
+  const mainAccounts = filteredAccounts.filter((a: Account) => a.isMain || !a.parentId);
+  const subAccounts = (parentId: string) => filteredAccounts.filter((a: Account) => a.parentId === parentId);
+
+  const handleAddAccount = async () => {
+    if (!newAccount.name) {
+      Alert.alert('خطأ', 'الرجاء إدخال اسم الحساب');
+      return;
+    }
+
+    const parentAccount = isSubAccount && newAccount.parentId 
+      ? accounts.find((a: Account) => a.id === newAccount.parentId)
+      : null;
+
+    const siblings = accounts.filter((a: Account) => 
+      isSubAccount ? a.parentId === newAccount.parentId : a.type === newAccount.type && a.isMain
+    );
+    
+    const code = parentAccount 
+      ? `${parentAccount.code}${(siblings.length + 1).toString().padStart(2, '0')}`
+      : `${mainTypes.indexOf(newAccount.type) + 1}${(siblings.length + 1).toString().padStart(2, '0')}`;
+
+    await add({
+      code,
+      name: newAccount.name,
+      nameEn: newAccount.nameEn || '',
+      type: parentAccount ? parentAccount.type : newAccount.type,
+      groupId: newAccount.groupId || '',
+      currency: newAccount.currency,
+      balance: parseFloat(newAccount.balance) || 0,
+      isMain: !isSubAccount,
+      parentId: isSubAccount ? newAccount.parentId : null,
+    });
+
+    setShowAddModal(false);
+    resetForm();
+  };
+
+  const handleDelete = async (account: Account) => {
+    const hasSubAccounts = accounts.some((a: Account) => a.parentId === account.id);
+    if (hasSubAccounts) {
+      Alert.alert('تنبيه', 'لا يمكن حذف حساب يحتوي على حسابات فرعية');
+      return;
+    }
+
+    Alert.alert('تأكيد الحذف', `هل تريد حذف "${account.name}"؟`, [
+      { text: 'إلغاء', style: 'cancel' },
+      { text: 'حذف', style: 'destructive', onPress: () => remove(account.id) },
+    ]);
+  };
+
+  const resetForm = () => {
+    setNewAccount({ name: '', nameEn: '', type: 'أصل', groupId: '', currency: 'YER', balance: '0', isMain: true, parentId: null });
+    setIsSubAccount(false);
+    setSelectedAccount(null);
+  };
+
+  const totalDebit = filteredAccounts.filter((a: Account) => ['أصل', 'مصروف'].includes(a.type)).reduce((s: number, a: Account) => s + (a.balance || 0), 0);
+  const totalCredit = filteredAccounts.filter((a: Account) => ['خصم', 'ملكية', 'إيراد'].includes(a.type)).reduce((s: number, a: Account) => s + (a.balance || 0), 0);
 
   return (
-    <View style={[st.c, { paddingTop: insets.top }]}><StatusBar barStyle="light-content" />
-      <View style={st.h}><TouchableOpacity onPress={() => router.back()}><Text style={st.bt}>←</Text></TouchableOpacity><Text style={st.t}>دليل الحسابات ({accounts.length})</Text><TouchableOpacity style={st.ab} onPress={() => { setEditMode(false); setSelectedAccount(null); setIsSubAccount(false); setParentAccount(null); setFormData({ name: '', code: '', type: 'أصل', currency: 'YER', balance: '0', parentId: '' }); setShowModal(true); }}><Text style={st.atx}>+</Text></TouchableOpacity></View>
-      <TextInput style={st.si} placeholder="🔍 بحث..." placeholderTextColor="#94a3b8" value={searchQuery} onChangeText={setSearchQuery} />
-      <View style={st.fr}>{types.map(t => <TouchableOpacity key={t} style={[st.fb, selectedType === t && st.fbA]} onPress={() => setSelectedType(t)}><Text style={[st.ft, selectedType === t && st.ftA]}>{t}</Text></TouchableOpacity>)}</View>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="light-content" />
       
-      {filtered.length === 0 ? <View style={st.e}><Text style={st.ei}>📚</Text><Text style={st.et}>لا توجد حسابات</Text></View> :
-        <FlatList data={displayAccounts} keyExtractor={(i: any) => i.id + (i._isSub ? '_sub' : '')}
-          renderItem={({ item }: any) => (
-            <View style={item._isSub ? { marginLeft: 20 } : {}}>
-              <TouchableOpacity style={[st.rc, item._isSub && st.subRc]} onPress={() => openEdit(item)} onLongPress={() => handleDelete(item)}>
-                <View style={st.rh}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={st.rcode}>{item.code}</Text>
-                    <Text style={st.rn}>{item._isSub ? '└ ' : ''}{item.name}</Text>
+      {/* الهيدر */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={styles.backBtn}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>دليل الحسابات</Text>
+        <Text style={styles.count}>({accounts.length})</Text>
+      </View>
+
+      {/* شريط البحث وأزرار التحكم */}
+      <View style={styles.controlBar}>
+        <TextInput style={styles.searchInput} placeholder="🔍 بحث..." placeholderTextColor="#94a3b8" value={searchQuery} onChangeText={setSearchQuery} />
+        <View style={styles.controlButtons}>
+          <TouchableOpacity style={styles.controlBtn} onPress={() => { resetForm(); setShowAddModal(true); }}>
+            <Text style={styles.controlBtnText}>+ إضافة</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.controlBtn} onPress={() => Alert.alert('طباعة', 'جاري تجهيز التقرير للطباعة')}>
+            <Text style={styles.controlBtnText}>🖨️</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* المجموعات الرئيسية */}
+      <View style={styles.groupsContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {mainTypes.map((type) => (
+            <TouchableOpacity
+              key={type}
+              style={[styles.groupCard, selectedGroup === type && styles.groupCardActive]}
+              onPress={() => setSelectedGroup(selectedGroup === type ? 'الكل' : type)}
+            >
+              <Text style={styles.groupIcon}>{getTypeIcon(type)}</Text>
+              <Text style={[styles.groupText, selectedGroup === type && styles.groupTextActive]}>{type}</Text>
+              <Text style={[styles.groupCount, selectedGroup === type && styles.groupTextActive]}>
+                {accounts.filter((a: Account) => a.type === type).length}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
+      {/* ملخص المدين والدائن */}
+      <View style={styles.summary}>
+        <View style={styles.summaryItem}>
+          <Text style={styles.summaryLabel}>مدين</Text>
+          <Text style={[styles.summaryValue, { color: '#10B981' }]}>{totalDebit.toLocaleString()}</Text>
+        </View>
+        <View style={styles.divider} />
+        <View style={styles.summaryItem}>
+          <Text style={styles.summaryLabel}>دائن</Text>
+          <Text style={[styles.summaryValue, { color: '#EF4444' }]}>{totalCredit.toLocaleString()}</Text>
+        </View>
+        <View style={styles.divider} />
+        <View style={styles.summaryItem}>
+          <Text style={styles.summaryLabel}>الفرق</Text>
+          <Text style={[styles.summaryValue, { color: '#D4AF37' }]}>{(totalDebit - totalCredit).toLocaleString()}</Text>
+        </View>
+      </View>
+
+      {/* قائمة الحسابات */}
+      {mainAccounts.length === 0 ? (
+        <View style={styles.empty}>
+          <Text style={styles.emptyIcon}>📚</Text>
+          <Text style={styles.emptyText}>لا توجد حسابات</Text>
+          <Text style={styles.emptySubtext}>اضغط + لإضافة حساب جديد</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={mainAccounts}
+          keyExtractor={(item: Account) => item.id}
+          renderItem={({ item }: { item: Account }) => (
+            <View>
+              <TouchableOpacity
+                style={[styles.accountCard, { borderRightColor: getTypeColor(item.type), borderRightWidth: 4 }]}
+                onPress={() => { setSelectedAccount(item); setShowDetailModal(true); }}
+                onLongPress={() => handleDelete(item)}
+              >
+                <View style={styles.accountHeader}>
+                  <View style={[styles.typeIndicator, { backgroundColor: getTypeColor(item.type) }]} />
+                  <View style={styles.accountInfo}>
+                    <Text style={styles.accountCode}>{item.code}</Text>
+                    <Text style={styles.accountName}>{item.name}</Text>
+                    {item.nameEn ? <Text style={styles.accountNameEn}>{item.nameEn}</Text> : null}
                   </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <View style={[st.tb, { backgroundColor: getTypeColor(item.type) + '20' }]}>
-                      <Text style={[st.tt, { color: getTypeColor(item.type) }]}>{item.type}</Text>
-                    </View>
-                    {!item._isSub && (
-                      <TouchableOpacity style={st.subBtn} onPress={() => openAddSub(item)}>
-                        <Text style={st.subBtnText}>+ فرعي</Text>
-                      </TouchableOpacity>
-                    )}
+                  <View style={styles.balanceContainer}>
+                    <Text style={[styles.balanceValue, { color: (item.balance || 0) >= 0 ? '#10B981' : '#EF4444' }]}>
+                      {(item.balance || 0).toLocaleString()}
+                    </Text>
+                    <Text style={styles.currencyText}>{item.currency}</Text>
                   </View>
+                  <TouchableOpacity onPress={() => { setNewAccount({ ...newAccount, type: item.type }); setSelectedAccount(item); setIsSubAccount(true); setNewAccount(prev => ({ ...prev, parentId: item.id })); setShowAddModal(true); }}>
+                    <Text style={styles.subAddBtn}>+ فرعي</Text>
+                  </TouchableOpacity>
                 </View>
-                <Text style={[st.rbal, { color: (item.balance || 0) >= 0 ? '#10B981' : '#EF4444' }]}>{(item.balance || 0).toLocaleString()} ﷼</Text>
+              </TouchableOpacity>
+              
+              {/* الحسابات الفرعية */}
+              {subAccounts(item.id).map((sub: Account) => (
+                <TouchableOpacity
+                  key={sub.id}
+                  style={[styles.subAccountCard]}
+                  onPress={() => { setSelectedAccount(sub); setShowDetailModal(true); }}
+                  onLongPress={() => handleDelete(sub)}
+                >
+                  <Text style={styles.subAccountCode}>{sub.code}</Text>
+                  <Text style={styles.subAccountName}>{sub.name}</Text>
+                  <Text style={[styles.subBalance, { color: (sub.balance || 0) >= 0 ? '#10B981' : '#EF4444' }]}>
+                    {(sub.balance || 0).toLocaleString()}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32 }}
+        />
+      )}
+
+      {/* Modal إضافة حساب */}
+      <Modal visible={showAddModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {isSubAccount ? `إضافة حساب فرعي لـ ${selectedAccount?.name || ''}` : 'إضافة حساب جديد'}
+              </Text>
+              <TouchableOpacity onPress={() => setShowAddModal(false)}>
+                <Text style={styles.modalClose}>✕</Text>
               </TouchableOpacity>
             </View>
-          )} contentContainerStyle={{ padding: 16, paddingBottom: 32 }} />
-      }
 
-      <Modal visible={showModal} animationType="slide" transparent>
-        <View style={st.mo}><View style={[st.mc, { maxHeight: '85%' }]}><View style={st.mh}><Text style={st.mt}>{editMode ? 'تعديل' : (isSubAccount ? `حساب فرعي لـ ${parentAccount?.name || ''}` : 'حساب رئيسي جديد')}</Text><TouchableOpacity onPress={() => setShowModal(false)}><Text style={st.mx}>✕</Text></TouchableOpacity></View>
-          <ScrollView style={st.mb}>
-            {isSubAccount && <View style={st.parentInfo}><Text style={st.parentLabel}>الحساب الرئيسي:</Text><Text style={st.parentName}>{parentAccount?.name}</Text></View>}
-            <Text style={st.fl}>اسم الحساب *</Text><TextInput style={st.fi} value={formData.name} onChangeText={v => setFormData({ ...formData, name: v })} placeholder="اسم الحساب" placeholderTextColor="#666" />
-            <Text style={st.fl}>كود الحساب</Text><TextInput style={st.fi} value={formData.code} onChangeText={v => setFormData({ ...formData, code: v })} placeholder="تلقائي" placeholderTextColor="#666" />
-            {!isSubAccount && <><Text style={st.fl}>النوع</Text><View style={st.tr}>{types.filter(t => t !== 'الكل').map(t => <TouchableOpacity key={t} style={[st.tb, formData.type === t && st.tbA]} onPress={() => setFormData({ ...formData, type: t })}><Text style={[st.tbt, formData.type === t && st.tbtA]}>{t}</Text></TouchableOpacity>)}</View></>}
-            <Text style={st.fl}>العملة</Text><TouchableOpacity style={st.pk} onPress={() => setShowCurrencyPicker(true)}><Text style={st.pkt}>{currencies.find((c: any) => c.code === formData.currency)?.name || formData.currency}</Text><Text style={st.pka}>▼</Text></TouchableOpacity>
-            <Text style={st.fl}>الرصيد الافتتاحي</Text><TextInput style={st.fi} value={formData.balance} onChangeText={v => setFormData({ ...formData, balance: v })} keyboardType="numeric" placeholder="0" placeholderTextColor="#666" />
-            <View style={st.ma}><TouchableOpacity style={st.sb} onPress={handleSave}><Text style={st.sbt}>💾 {editMode ? 'تحديث' : 'حفظ'}</Text></TouchableOpacity><TouchableOpacity style={st.clb} onPress={() => setShowModal(false)}><Text style={st.clt}>إلغاء</Text></TouchableOpacity></View>
-          </ScrollView></View></View>
+            <ScrollView style={styles.modalBody}>
+              {!isSubAccount && (
+                <>
+                  <Text style={styles.fieldLabel}>نوع الحساب</Text>
+                  <View style={styles.typeSelector}>
+                    {mainTypes.map(type => (
+                      <TouchableOpacity
+                        key={type}
+                        style={[styles.typeBtn, newAccount.type === type && styles.typeBtnActive]}
+                        onPress={() => setNewAccount({ ...newAccount, type })}
+                      >
+                        <Text style={[styles.typeBtnText, newAccount.type === type && styles.typeBtnTextActive]}>{type}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </>
+              )}
+
+              <Text style={styles.fieldLabel}>اسم الحساب *</Text>
+              <TextInput style={styles.fieldInput} value={newAccount.name} onChangeText={(v) => setNewAccount({ ...newAccount, name: v })} placeholder="اسم الحساب بالعربية" placeholderTextColor="#666" />
+
+              <Text style={styles.fieldLabel}>اسم الحساب (إنجليزي) اختياري</Text>
+              <TextInput style={styles.fieldInput} value={newAccount.nameEn} onChangeText={(v) => setNewAccount({ ...newAccount, nameEn: v })} placeholder="Account name" placeholderTextColor="#666" />
+
+              <Text style={styles.fieldLabel}>العملة</Text>
+              <View style={styles.currencySelector}>
+                {currencyOptions.map(cur => (
+                  <TouchableOpacity
+                    key={cur}
+                    style={[styles.currencyBtn, newAccount.currency === cur && styles.currencyBtnActive]}
+                    onPress={() => setNewAccount({ ...newAccount, currency: cur })}
+                  >
+                    <Text style={[styles.currencyBtnText, newAccount.currency === cur && styles.currencyBtnTextActive]}>
+                      {cur === 'ALL' ? 'الكل' : cur}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={styles.fieldLabel}>الرصيد الافتتاحي</Text>
+              <TextInput style={styles.fieldInput} value={newAccount.balance} onChangeText={(v) => setNewAccount({ ...newAccount, balance: v })} keyboardType="numeric" placeholder="0" placeholderTextColor="#666" />
+
+              <TouchableOpacity style={styles.saveButton} onPress={handleAddAccount}>
+                <Text style={styles.saveButtonText}>💾 حفظ</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
       </Modal>
-      <PickerModal visible={showCurrencyPicker} title="اختيار العملة" data={currencies || []} displayField="name" subField="code" onSelect={(i: any) => setFormData({ ...formData, currency: i.code })} onClose={() => setShowCurrencyPicker(false)} />
+
+      {/* Modal تفاصيل الحساب */}
+      <Modal visible={showDetailModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>تفاصيل الحساب</Text>
+              <TouchableOpacity onPress={() => setShowDetailModal(false)}>
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            {selectedAccount && (
+              <ScrollView style={styles.modalBody}>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>الكود</Text>
+                  <Text style={styles.detailValue}>{selectedAccount.code}</Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>الاسم</Text>
+                  <Text style={styles.detailValue}>{selectedAccount.name}</Text>
+                </View>
+                {selectedAccount.nameEn ? (
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>الاسم الإنجليزي</Text>
+                    <Text style={styles.detailValue}>{selectedAccount.nameEn}</Text>
+                  </View>
+                ) : null}
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>النوع</Text>
+                  <Text style={[styles.detailValue, { color: getTypeColor(selectedAccount.type) }]}>{selectedAccount.type}</Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>العملة</Text>
+                  <Text style={styles.detailValue}>{selectedAccount.currency}</Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>الرصيد</Text>
+                  <Text style={[styles.detailValue, { color: (selectedAccount.balance || 0) >= 0 ? '#10B981' : '#EF4444' }]}>
+                    {(selectedAccount.balance || 0).toLocaleString()}
+                  </Text>
+                </View>
+
+                <View style={styles.detailActions}>
+                  <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#3B82F6' }]}>
+                    <Text style={styles.actionBtnText}>✏️ تعديل</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#EF4444' }]} onPress={() => { setShowDetailModal(false); handleDelete(selectedAccount); }}>
+                    <Text style={styles.actionBtnText}>🗑️ حذف</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#10B981' }]}>
+                    <Text style={styles.actionBtnText}>🖨️ طباعة</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
-const st = StyleSheet.create({
-  c: { flex: 1, backgroundColor: '#0A1128' }, h: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 }, bt: { fontSize: 24, color: '#D4AF37', fontWeight: 'bold' }, t: { fontSize: 18, fontWeight: 'bold', color: '#FFF' }, ab: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#D4AF37' + '20', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#D4AF37' }, atx: { fontSize: 20, color: '#D4AF37', fontWeight: 'bold' },
-  si: { marginHorizontal: 16, marginBottom: 12, padding: 12, backgroundColor: '#16213E', borderRadius: 10, color: '#FFF', borderWidth: 1, borderColor: '#2a3550', textAlign: 'right', fontSize: 14 },
-  fr: { flexDirection: 'row', paddingHorizontal: 16, marginBottom: 12, gap: 6 }, fb: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: '#16213E', borderWidth: 1, borderColor: '#2a3550' }, fbA: { backgroundColor: '#D4AF37' + '20', borderColor: '#D4AF37' }, ft: { color: '#94a3b8', fontSize: 12 }, ftA: { color: '#D4AF37', fontWeight: 'bold' },
-  e: { flex: 1, justifyContent: 'center', alignItems: 'center' }, ei: { fontSize: 48, marginBottom: 12 }, et: { color: '#FFF', fontSize: 16 },
-  rc: { backgroundColor: '#16213E', borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: '#2a3550', marginHorizontal: 16 }, subRc: { backgroundColor: '#1a2240', borderColor: '#2a3550' },
-  rh: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }, rcode: { color: '#94a3b8', fontSize: 11 }, rn: { color: '#FFF', fontSize: 14, fontWeight: 'bold', marginTop: 2 }, tb: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 }, tt: { fontSize: 10, fontWeight: 'bold' },
-  subBtn: { backgroundColor: '#10B981' + '20', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1, borderColor: '#10B981' + '40' }, subBtnText: { color: '#10B981', fontSize: 10, fontWeight: 'bold' },
-  rbal: { fontSize: 16, fontWeight: 'bold' },
-  mo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }, mc: { backgroundColor: '#16213E', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '85%' }, mh: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#2a3550' }, mt: { color: '#D4AF37', fontSize: 18, fontWeight: 'bold' }, mx: { color: '#EF4444', fontSize: 22, fontWeight: 'bold' }, mb: { padding: 16 },
-  fl: { color: '#94a3b8', fontSize: 13, marginBottom: 6, marginTop: 12 }, fi: { backgroundColor: '#0A1128', borderRadius: 10, padding: 12, color: '#FFF', borderWidth: 1, borderColor: '#2a3550', fontSize: 14 },
-  parentInfo: { backgroundColor: '#D4AF37' + '15', borderRadius: 10, padding: 10, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 6 }, parentLabel: { color: '#94a3b8', fontSize: 12 }, parentName: { color: '#D4AF37', fontSize: 14, fontWeight: 'bold' },
-  tr: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 }, tbA: { borderColor: '#D4AF37', backgroundColor: '#D4AF37' + '20' }, tbt: { color: '#94a3b8', fontSize: 12 }, tbtA: { color: '#D4AF37', fontWeight: 'bold' },
-  pk: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#0A1128', borderRadius: 10, padding: 14, borderWidth: 1, borderColor: '#2a3550' }, pkt: { color: '#FFF', fontSize: 14, flex: 1 }, pka: { color: '#D4AF37', fontSize: 12, marginLeft: 8 },
-  ma: { flexDirection: 'row', gap: 10, marginTop: 24, marginBottom: 16 }, sb: { flex: 1, backgroundColor: '#D4AF37', borderRadius: 12, padding: 14, alignItems: 'center' }, sbt: { color: '#0A1128', fontSize: 16, fontWeight: 'bold' }, clb: { flex: 1, backgroundColor: '#2a3550', borderRadius: 12, padding: 14, alignItems: 'center' }, clt: { color: '#FFF', fontSize: 16 },
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#0A1128' },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
+  backBtn: { fontSize: 24, color: '#D4AF37', fontWeight: 'bold' },
+  title: { fontSize: 18, fontWeight: 'bold', color: '#FFFFFF', flex: 1 },
+  count: { color: '#94a3b8', fontSize: 14 },
+  controlBar: { flexDirection: 'row', paddingHorizontal: 16, marginBottom: 12, gap: 8 },
+  searchInput: { flex: 1, backgroundColor: '#16213E', borderRadius: 10, padding: 10, color: '#FFFFFF', borderWidth: 1, borderColor: '#2a3550', textAlign: 'right', fontSize: 14 },
+  controlButtons: { flexDirection: 'row', gap: 4 },
+  controlBtn: { backgroundColor: '#D4AF37' + '20', borderRadius: 10, padding: 10, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#D4AF37' + '40' },
+  controlBtnText: { color: '#D4AF37', fontSize: 13, fontWeight: 'bold' },
+  groupsContainer: { marginBottom: 12 },
+  groupCard: {
+    alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, marginLeft: 8,
+    backgroundColor: '#16213E', borderRadius: 12, borderWidth: 1, borderColor: '#2a3550',
+    minWidth: 70,
+  },
+  groupCardActive: { backgroundColor: '#D4AF37' + '20', borderColor: '#D4AF37' },
+  groupIcon: { fontSize: 20, marginBottom: 4 },
+  groupText: { color: '#94a3b8', fontSize: 11 },
+  groupTextActive: { color: '#D4AF37', fontWeight: 'bold' },
+  groupCount: { color: '#6B7280', fontSize: 10, marginTop: 2 },
+  summary: { flexDirection: 'row', marginHorizontal: 16, marginBottom: 12, backgroundColor: '#16213E', borderRadius: 10, padding: 12, justifyContent: 'space-around', borderWidth: 1, borderColor: '#2a3550' },
+  summaryItem: { alignItems: 'center' },
+  summaryLabel: { color: '#94a3b8', fontSize: 11, marginBottom: 2 },
+  summaryValue: { fontSize: 14, fontWeight: 'bold' },
+  divider: { width: 1, backgroundColor: '#2a3550' },
+  empty: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  emptyIcon: { fontSize: 48, marginBottom: 12 },
+  emptyText: { color: '#FFFFFF', fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
+  emptySubtext: { color: '#94a3b8', fontSize: 12 },
+  accountCard: { backgroundColor: '#16213E', borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#2a3550' },
+  accountHeader: { flexDirection: 'row', alignItems: 'center' },
+  typeIndicator: { width: 3, height: 40, borderRadius: 2, marginRight: 10 },
+  accountInfo: { flex: 1 },
+  accountCode: { color: '#94a3b8', fontSize: 10 },
+  accountName: { color: '#FFFFFF', fontSize: 14, fontWeight: 'bold', marginTop: 2 },
+  accountNameEn: { color: '#6B7280', fontSize: 11, fontStyle: 'italic' },
+  balanceContainer: { alignItems: 'flex-end', marginRight: 8 },
+  balanceValue: { fontSize: 14, fontWeight: 'bold' },
+  currencyText: { color: '#6B7280', fontSize: 10 },
+  subAddBtn: { color: '#10B981', fontSize: 11, fontWeight: 'bold', padding: 4, backgroundColor: '#10B98120', borderRadius: 6 },
+  subAccountCard: {
+    flexDirection: 'row', alignItems: 'center', marginLeft: 24, marginBottom: 4,
+    backgroundColor: '#1a2240', borderRadius: 8, padding: 10, borderWidth: 1, borderColor: '#2a3550',
+  },
+  subAccountCode: { color: '#94a3b8', fontSize: 11, width: 50 },
+  subAccountName: { color: '#FFFFFF', fontSize: 13, flex: 1 },
+  subBalance: { fontSize: 13, fontWeight: 'bold' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: '#16213E', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '80%' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#2a3550' },
+  modalTitle: { color: '#D4AF37', fontSize: 18, fontWeight: 'bold' },
+  modalClose: { color: '#EF4444', fontSize: 22, fontWeight: 'bold' },
+  modalBody: { padding: 16 },
+  fieldLabel: { color: '#94a3b8', fontSize: 13, marginBottom: 6, marginTop: 12 },
+  fieldInput: { backgroundColor: '#0A1128', borderRadius: 10, padding: 12, color: '#FFFFFF', borderWidth: 1, borderColor: '#2a3550', fontSize: 14 },
+  typeSelector: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  typeBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: '#0A1128', borderWidth: 1, borderColor: '#2a3550' },
+  typeBtnActive: { backgroundColor: '#D4AF37' + '30', borderColor: '#D4AF37' },
+  typeBtnText: { color: '#94a3b8', fontSize: 12 },
+  typeBtnTextActive: { color: '#D4AF37', fontWeight: 'bold' },
+  currencySelector: { flexDirection: 'row', gap: 6 },
+  currencyBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: '#0A1128', borderWidth: 1, borderColor: '#2a3550' },
+  currencyBtnActive: { backgroundColor: '#10B981' + '30', borderColor: '#10B981' },
+  currencyBtnText: { color: '#94a3b8', fontSize: 12 },
+  currencyBtnTextActive: { color: '#10B981', fontWeight: 'bold' },
+  saveButton: { backgroundColor: '#D4AF37', borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 20 },
+  saveButtonText: { color: '#0A1128', fontSize: 16, fontWeight: 'bold' },
+  detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#2a3550' },
+  detailLabel: { color: '#94a3b8', fontSize: 14 },
+  detailValue: { color: '#FFFFFF', fontSize: 14, fontWeight: 'bold' },
+  detailActions: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 20, gap: 8 },
+  actionBtn: { flex: 1, padding: 12, borderRadius: 10, alignItems: 'center' },
+  actionBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: 'bold' },
 });
