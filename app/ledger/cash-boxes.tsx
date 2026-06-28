@@ -1,212 +1,79 @@
-import { ControlButtons, ControlHeader } from '../../src/components/ui/ControlButtons';
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, StatusBar, Alert, Modal, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalTable } from '../../hooks/useLocalStore';
-
-interface CashBox {
-  id: string;
-  name: string;
-  currency: string;
-  balance: number;
-  isActive: boolean;
-  createdAt: string;
-}
+import { PickerModal } from '../../src/components/ui/PickerModal';
+import { ControlButtons, ControlHeader } from '../../src/components/ui/ControlButtons';
 
 export default function CashBoxesScreen() {
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const { data: cashBoxes, add, remove, update } = useLocalTable<CashBox>('cashBoxes');
+  const router = useRouter(); const insets = useSafeAreaInsets();
+  const { data: cashBoxes, add } = useLocalTable('cashBoxes');
+  const { data: accounts, add: addToAccounts } = useLocalTable('accounts');
+  const { data: currencies } = useLocalTable('currencies');
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
-  const [editMode, setEditMode] = useState(false);
-  const [selectedBox, setSelectedBox] = useState<CashBox | null>(null);
+  const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
   const [formData, setFormData] = useState({ name: '', currency: 'YER', balance: '0' });
 
-  const currencies = ['YER', 'USD', 'SAR'];
+  const filtered = cashBoxes.filter((b: any) => (b.name || '').includes(searchQuery));
+  const totalBalance = cashBoxes.reduce((s: number, b: any) => s + (b.balance || 0), 0);
 
-  const filteredBoxes = cashBoxes.filter((b: CashBox) => b.name?.includes(searchQuery));
-  const totalBalance = cashBoxes.reduce((s: number, b: CashBox) => s + (b.balance || 0), 0);
+  // البحث عن الحساب الرئيسي "الصندوق" أو إنشاؤه
+  const getOrCreateParentAccount = async (): Promise<string> => {
+    let parent = accounts.find((a: any) => a.name === 'الصندوق' && !a.parentId && a.type === 'أصل');
+    if (parent) return parent.id;
+    
+    // إنشاء الحساب الرئيسي "الصندوق"
+    const siblings = accounts.filter((a: any) => a.type === 'أصل' && !a.parentId);
+    const code = '1' + (siblings.length + 1).toString().padStart(2, '0');
+    await addToAccounts({ name: 'الصندوق', code, type: 'أصل', currency: 'YER', balance: 0, parentId: '' });
+    // البحث مرة أخرى
+    const newParent = accounts.find((a: any) => a.name === 'الصندوق' && !a.parentId && a.type === 'أصل');
+    return newParent?.id || '';
+  };
 
   const handleSave = async () => {
-    if (!formData.name) { Alert.alert('خطأ', 'الرجاء إدخال اسم الصندوق'); return; }
+    if (!formData.name) { Alert.alert('خطأ', 'أدخل اسم الصندوق'); return; }
+    const exists = cashBoxes.find((b: any) => b.name === formData.name);
+    if (exists) { Alert.alert('تنبيه', 'هذا الصندوق موجود بالفعل'); return; }
     
-    if (editMode && selectedBox) {
-      await update(selectedBox.id, formData);
-    } else {
-      await add({ ...formData, balance: parseFloat(formData.balance) || 0, isActive: true });
-    }
-    setShowModal(false);
-    resetForm();
-  };
-
-  const handleDelete = (box: CashBox) => {
-    Alert.alert('تأكيد الحذف', `هل تريد حذف "${box.name}"؟`, [
-      { text: 'إلغاء', style: 'cancel' },
-      { text: 'حذف', style: 'destructive', onPress: () => remove(box.id) },
-    ]);
-  };
-
-  const resetForm = () => {
-    setFormData({ name: '', currency: 'YER', balance: '0' });
-    setSelectedBox(null);
-    setEditMode(false);
+    await add({ ...formData, balance: parseFloat(formData.balance) || 0 });
+    
+    // إضافة كحساب فرعي تحت "الصندوق"
+    const parentId = await getOrCreateParentAccount();
+    const parent = accounts.find((a: any) => a.id === parentId);
+    const siblings = accounts.filter((a: any) => a.parentId === parentId);
+    const code = (parent?.code || '10') + (siblings.length + 1).toString().padStart(2, '0');
+    await addToAccounts({ name: formData.name, code, type: 'أصل', currency: formData.currency, balance: parseFloat(formData.balance) || 0, parentId });
+    
+    setShowModal(false); setFormData({ name: '', currency: 'YER', balance: '0' });
+    Alert.alert('✅', 'تم إضافة الصندوق الفرعي برقم: ' + code);
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="light-content" />
-      
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.backBtn}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>الصناديق</Text>
-        <TouchableOpacity style={styles.addBtn} onPress={() => { resetForm(); setShowModal(true); }}>
-          <Text style={styles.addBtnText}>+</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.controlBar}>
-        <TextInput style={styles.searchInput} placeholder="🔍 بحث عن صندوق..." placeholderTextColor="#94a3b8" value={searchQuery} onChangeText={setSearchQuery} />
-        <TouchableOpacity style={styles.printBtn}>
-          <Text style={styles.printBtnText}>🖨️</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.summaryCard}>
-        <Text style={styles.summaryLabel}>إجمالي النقدية</Text>
-        <Text style={styles.summaryValue}>{totalBalance.toLocaleString()} ﷼</Text>
-        <Text style={styles.summarySub}>عدد الصناديق: {cashBoxes.length}</Text>
-      </View>
-
-      {filteredBoxes.length === 0 ? (
-        <View style={styles.empty}>
-          <Text style={styles.emptyIcon}>💰</Text>
-          <Text style={styles.emptyText}>لا توجد صناديق</Text>
-          <Text style={styles.emptySubtext}>اضغط + لإضافة صندوق جديد</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={filteredBoxes}
-          keyExtractor={(item: CashBox) => item.id}
-          renderItem={({ item }: { item: CashBox }) => (
-            <TouchableOpacity style={styles.boxCard} onPress={() => { setFormData({ name: item.name, currency: item.currency, balance: item.balance?.toString() }); setSelectedBox(item); setEditMode(true); setShowModal(true); }} onLongPress={() => handleDelete(item)}>
-              <View style={styles.boxHeader}>
-                <Text style={styles.boxIcon}>💰</Text>
-                <View style={styles.boxInfo}>
-                  <Text style={styles.boxName}>{item.name}</Text>
-                  <Text style={styles.boxCurrency}>{item.currency}</Text>
-                </View>
-                <View style={styles.balanceContainer}>
-                  <Text style={[styles.balanceValue, { color: (item.balance || 0) >= 0 ? '#10B981' : '#EF4444' }]}>
-                    {(item.balance || 0).toLocaleString()} ﷼
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.boxFooter}>
-                <TouchableOpacity style={styles.actionBtn} onPress={() => { setFormData({ name: item.name, currency: item.currency, balance: item.balance?.toString() }); setSelectedBox(item); setEditMode(true); setShowModal(true); }}>
-                  <Text style={styles.actionBtnText}>✏️ تعديل</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.actionBtnDel} onPress={() => handleDelete(item)}>
-                  <Text style={styles.actionBtnText}>🗑️ حذف</Text>
-                </TouchableOpacity>
-              </View>
-            </TouchableOpacity>
-          )}
-          contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
-        />
-      )}
-
+    <View style={[st.c, { paddingTop: insets.top }]}><StatusBar barStyle="light-content" />
+      <ControlHeader title="الصناديق" count={cashBoxes.length} onBack={() => router.back()} onAdd={() => { setFormData({ name: '', currency: 'YER', balance: '0' }); setShowModal(true); }} />
+      <ControlButtons showEdit={false} showDelete={false} />
+      <TextInput style={st.si} placeholder="🔍 بحث..." placeholderTextColor="#94a3b8" value={searchQuery} onChangeText={setSearchQuery} />
+      <View style={st.sm}><Text style={st.sl}>إجمالي النقدية</Text><Text style={st.sv}>{totalBalance.toLocaleString()} ﷼</Text></View>
+      {filtered.length === 0 ? <View style={st.e}><Text style={st.ei}>💰</Text><Text style={st.et}>لا توجد صناديق</Text></View> :
+        <FlatList data={filtered} keyExtractor={(i: any) => i.id} renderItem={({ item }: any) => (
+          <TouchableOpacity style={st.rc}><Text style={st.ri}>💰</Text><View style={{ flex: 1 }}><Text style={st.rn}>{item.name}</Text><Text style={st.ru}>{item.currency}</Text></View><Text style={[st.rbal, { color: (item.balance || 0) >= 0 ? '#10B981' : '#EF4444' }]}>{(item.balance || 0).toLocaleString()} ﷼</Text></TouchableOpacity>
+        )} contentContainerStyle={{ padding: 16 }} />}
       <Modal visible={showModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{editMode ? 'تعديل صندوق' : 'إضافة صندوق جديد'}</Text>
-              <TouchableOpacity onPress={() => setShowModal(false)}>
-                <Text style={styles.modalClose}>✕</Text>
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={styles.modalBody}>
-              <Text style={styles.fieldLabel}>اسم الصندوق *</Text>
-              <TextInput style={styles.fieldInput} value={formData.name} onChangeText={(v) => setFormData({ ...formData, name: v })} placeholder="اسم الصندوق" placeholderTextColor="#666" />
-
-              <Text style={styles.fieldLabel}>العملة</Text>
-              <View style={styles.currencyRow}>
-                {currencies.map(cur => (
-                  <TouchableOpacity key={cur} style={[styles.currencyBtn, formData.currency === cur && styles.currencyBtnActive]} onPress={() => setFormData({ ...formData, currency: cur })}>
-                    <Text style={[styles.currencyBtnText, formData.currency === cur && styles.currencyBtnTextActive]}>{cur}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <Text style={styles.fieldLabel}>الرصيد الافتتاحي</Text>
-              <TextInput style={styles.fieldInput} value={formData.balance} onChangeText={(v) => setFormData({ ...formData, balance: v })} keyboardType="numeric" placeholder="0" placeholderTextColor="#666" />
-
-              <View style={styles.modalActions}>
-                <TouchableOpacity style={styles.saveModalBtn} onPress={handleSave}>
-                  <Text style={styles.saveModalBtnText}>💾 حفظ</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.cancelModalBtn} onPress={() => setShowModal(false)}>
-                  <Text style={styles.cancelModalBtnText}>إلغاء</Text>
-                </TouchableOpacity>
-              </View>
-            </ScrollView>
-          </View>
-        </View>
+        <View style={st.mo}><View style={[st.mc, { maxHeight: '60%' }]}><View style={st.mh}><Text style={st.mt}>إضافة صندوق فرعي</Text><TouchableOpacity onPress={() => setShowModal(false)}><Text style={st.mx}>✕</Text></TouchableOpacity></View>
+        <ScrollView style={st.mb}>
+          <Text style={st.fl}>اسم الصندوق *</Text><TextInput style={st.fi} value={formData.name} onChangeText={v => setFormData({ ...formData, name: v })} placeholder="اسم الصندوق" placeholderTextColor="#666" />
+          <Text style={st.fl}>العملة</Text>
+          <TouchableOpacity style={st.pk} onPress={() => setShowCurrencyPicker(true)}><Text style={st.pkt}>{formData.currency}</Text><Text style={st.pka}>▼</Text></TouchableOpacity>
+          <Text style={st.fl}>الرصيد الافتتاحي</Text><TextInput style={st.fi} value={formData.balance} onChangeText={v => setFormData({ ...formData, balance: v })} keyboardType="numeric" placeholder="0" placeholderTextColor="#666" />
+          <Text style={st.hint}>سيتم إضافته تحت حساب "الصندوق" الرئيسي في الدليل</Text>
+          <TouchableOpacity style={st.sb} onPress={handleSave}><Text style={st.sbt}>💾 حفظ</Text></TouchableOpacity>
+        </ScrollView></View></View>
       </Modal>
+      <PickerModal visible={showCurrencyPicker} title="اختيار العملة" data={currencies || []} displayField="code" onSelect={(i: any) => setFormData({ ...formData, currency: i.code })} onClose={() => setShowCurrencyPicker(false)} />
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0A1128' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
-  backBtn: { fontSize: 24, color: '#D4AF37', fontWeight: 'bold' },
-  title: { fontSize: 18, fontWeight: 'bold', color: '#FFFFFF' },
-  addBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#D4AF37' + '20', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#D4AF37' },
-  addBtnText: { fontSize: 20, color: '#D4AF37', fontWeight: 'bold' },
-  controlBar: { flexDirection: 'row', paddingHorizontal: 16, marginBottom: 12, gap: 8 },
-  searchInput: { flex: 1, backgroundColor: '#16213E', borderRadius: 10, padding: 10, color: '#FFFFFF', borderWidth: 1, borderColor: '#2a3550', textAlign: 'right', fontSize: 14 },
-  printBtn: { backgroundColor: '#16213E', borderRadius: 10, padding: 10, justifyContent: 'center', borderWidth: 1, borderColor: '#2a3550' },
-  printBtnText: { fontSize: 18 },
-  summaryCard: { marginHorizontal: 16, marginBottom: 16, padding: 20, backgroundColor: '#16213E', borderRadius: 14, alignItems: 'center', borderWidth: 1, borderColor: '#2a3550' },
-  summaryLabel: { color: '#94a3b8', fontSize: 14, marginBottom: 8 },
-  summaryValue: { color: '#D4AF37', fontSize: 32, fontWeight: 'bold', marginBottom: 4 },
-  summarySub: { color: '#6B7280', fontSize: 12 },
-  empty: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  emptyIcon: { fontSize: 48, marginBottom: 12 },
-  emptyText: { color: '#FFFFFF', fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
-  emptySubtext: { color: '#94a3b8', fontSize: 12 },
-  boxCard: { backgroundColor: '#16213E', borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#2a3550' },
-  boxHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  boxIcon: { fontSize: 28, marginRight: 10 },
-  boxInfo: { flex: 1 },
-  boxName: { color: '#FFFFFF', fontSize: 16, fontWeight: 'bold', marginBottom: 2 },
-  boxCurrency: { color: '#94a3b8', fontSize: 12 },
-  balanceContainer: {},
-  balanceValue: { fontSize: 18, fontWeight: 'bold' },
-  boxFooter: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, borderTopWidth: 1, borderTopColor: '#2a3550', paddingTop: 10 },
-  actionBtn: { backgroundColor: '#3B82F6' + '20', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
-  actionBtnDel: { backgroundColor: '#EF4444' + '20', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
-  actionBtnText: { color: '#FFFFFF', fontSize: 12, fontWeight: 'bold' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: '#16213E', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '70%' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#2a3550' },
-  modalTitle: { color: '#D4AF37', fontSize: 18, fontWeight: 'bold' },
-  modalClose: { color: '#EF4444', fontSize: 22, fontWeight: 'bold' },
-  modalBody: { padding: 16 },
-  fieldLabel: { color: '#94a3b8', fontSize: 13, marginBottom: 6, marginTop: 12 },
-  fieldInput: { backgroundColor: '#0A1128', borderRadius: 10, padding: 12, color: '#FFFFFF', borderWidth: 1, borderColor: '#2a3550', fontSize: 14 },
-  currencyRow: { flexDirection: 'row', gap: 8 },
-  currencyBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: '#0A1128', borderWidth: 1, borderColor: '#2a3550' },
-  currencyBtnActive: { backgroundColor: '#10B981' + '20', borderColor: '#10B981' },
-  currencyBtnText: { color: '#94a3b8', fontSize: 13 },
-  currencyBtnTextActive: { color: '#10B981', fontWeight: 'bold' },
-  modalActions: { flexDirection: 'row', gap: 10, marginTop: 24 },
-  saveModalBtn: { flex: 1, backgroundColor: '#D4AF37', borderRadius: 12, padding: 14, alignItems: 'center' },
-  saveModalBtnText: { color: '#0A1128', fontSize: 16, fontWeight: 'bold' },
-  cancelModalBtn: { flex: 1, backgroundColor: '#2a3550', borderRadius: 12, padding: 14, alignItems: 'center' },
-  cancelModalBtnText: { color: '#FFFFFF', fontSize: 16 },
-});
+const st = StyleSheet.create({c:{flex:1,backgroundColor:'#0A1128'},si:{marginHorizontal:16,marginBottom:12,padding:12,backgroundColor:'#16213E',borderRadius:10,color:'#FFF',borderWidth:1,borderColor:'#2a3550',textAlign:'right',fontSize:14},sm:{marginHorizontal:16,marginBottom:12,padding:16,backgroundColor:'#16213E',borderRadius:14,alignItems:'center',borderWidth:1,borderColor:'#2a3550'},sl:{color:'#94a3b8',fontSize:13,marginBottom:6},sv:{color:'#D4AF37',fontSize:24,fontWeight:'bold'},e:{flex:1,justifyContent:'center',alignItems:'center'},ei:{fontSize:48,marginBottom:12},et:{color:'#FFF',fontSize:16},rc:{flexDirection:'row',alignItems:'center',backgroundColor:'#16213E',borderRadius:14,padding:14,marginBottom:10,marginHorizontal:16,borderWidth:1,borderColor:'#2a3550'},ri:{fontSize:28,marginRight:10},rn:{color:'#FFF',fontSize:14,fontWeight:'bold',marginBottom:2},ru:{color:'#94a3b8',fontSize:11},rbal:{fontSize:16,fontWeight:'bold'},mo:{flex:1,backgroundColor:'rgba(0,0,0,0.7)',justifyContent:'flex-end'},mc:{backgroundColor:'#16213E',borderTopLeftRadius:20,borderTopRightRadius:20,maxHeight:'60%'},mh:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',padding:16,borderBottomWidth:1,borderBottomColor:'#2a3550'},mt:{color:'#D4AF37',fontSize:18,fontWeight:'bold'},mx:{color:'#EF4444',fontSize:22,fontWeight:'bold'},mb:{padding:16},fl:{color:'#94a3b8',fontSize:13,marginBottom:6,marginTop:12},fi:{backgroundColor:'#0A1128',borderRadius:10,padding:12,color:'#FFF',borderWidth:1,borderColor:'#2a3550',fontSize:14},pk:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',backgroundColor:'#0A1128',borderRadius:10,padding:14,borderWidth:1,borderColor:'#2a3550'},pkt:{color:'#FFF',fontSize:14,flex:1},pkp:{color:'#666',fontSize:14,flex:1},pka:{color:'#D4AF37',fontSize:12,marginLeft:8},hint:{color:'#10B981',fontSize:11,textAlign:'center',marginTop:8},sb:{backgroundColor:'#D4AF37',borderRadius:12,padding:14,alignItems:'center',marginTop:20},sbt:{color:'#0A1128',fontSize:16,fontWeight:'bold'}});

@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalTable } from '../../hooks/useLocalStore';
 import { PickerModal } from '../../src/components/ui/PickerModal';
 
-export default function SalesInvoiceScreen() {
+export default function PurchaseInvoiceScreen() {
   const router = useRouter(); const insets = useSafeAreaInsets();
   const { data: invoices, add, remove, update } = useLocalTable('purchaseInvoices');
   const { data: accounts } = useLocalTable('accounts');
