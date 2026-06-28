@@ -1,131 +1,82 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLocalTable } from '../../hooks/useLocalStore';
+import { ControlButtons, ControlHeader } from '../../src/components/ui/ControlButtons';
 
 export default function TrialBalanceScreen() {
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const router = useRouter(); const insets = useSafeAreaInsets();
+  const { data: accounts } = useLocalTable('accounts');
 
-  // بيانات تجريبية فارغة
-  const trialData: any[] = [];
-
-  const totalDebit = trialData.reduce((sum, item) => sum + item.debit, 0);
-  const totalCredit = trialData.reduce((sum, item) => sum + item.credit, 0);
+  const mainAccounts = accounts.filter((a: any) => !a.parentId);
+  
+  const totalDebit = accounts.filter((a: any) => ['أصل', 'مصروف'].includes(a.type)).reduce((s: number, a: any) => s + (a.balance || 0), 0);
+  const totalCredit = accounts.filter((a: any) => ['خصم', 'ملكية', 'إيراد'].includes(a.type)).reduce((s: number, a: any) => s + (a.balance || 0), 0);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="light-content" />
+    <View style={[st.c, { paddingTop: insets.top }]}><StatusBar barStyle="light-content" />
+      <ControlHeader title="ميزان المراجعة" onBack={() => router.back()} />
+      <ControlButtons showAdd={false} showEdit={false} showDelete={false} onPrint={() => Alert.alert('🖨️', 'جاري الطباعة')} />
       
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.backBtn}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>ميزان المراجعة</Text>
-        <View style={{ width: 40 }} />
-      </View>
-
-      <ScrollView style={styles.content}>
-        {/* المجاميع */}
-        <View style={styles.summaryCard}>
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>إجمالي مدين</Text>
-            <Text style={[styles.summaryValue, { color: '#10B981' }]}>
-              {totalDebit.toLocaleString()} ﷼
-            </Text>
-          </View>
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>إجمالي دائن</Text>
-            <Text style={[styles.summaryValue, { color: '#EF4444' }]}>
-              {totalCredit.toLocaleString()} ﷼
-            </Text>
-          </View>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={st.ct}>
+        <View style={st.summary}>
+          <View style={st.sumItem}><Text style={st.sumLabel}>مدين</Text><Text style={[st.sumVal, { color: '#10B981' }]}>{totalDebit.toLocaleString()}</Text></View>
+          <View style={st.sumItem}><Text style={st.sumLabel}>دائن</Text><Text style={[st.sumVal, { color: '#EF4444' }]}>{totalCredit.toLocaleString()}</Text></View>
+          <View style={st.sumItem}><Text style={st.sumLabel}>الفرق</Text><Text style={[st.sumVal, { color: totalDebit === totalCredit ? '#10B981' : '#EF4444' }]}>{(totalDebit - totalCredit).toLocaleString()}</Text></View>
         </View>
-
-        {/* جدول ميزان المراجعة */}
-        {trialData.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>📊</Text>
-            <Text style={styles.emptyTitle}>لا توجد بيانات</Text>
-            <Text style={styles.emptyDesc}>
-              قم بإضافة قيود يومية ليظهر ميزان المراجعة
-            </Text>
-            <TouchableOpacity 
-              style={styles.addButton}
-              onPress={() => router.push('/ledger/journal-entry')}
-            >
-              <Text style={styles.addButtonText}>+ إضافة قيد يومية</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={styles.table}>
-            <View style={[styles.tableRow, styles.tableHeader]}>
-              <Text style={[styles.tableCell, styles.headerText, { flex: 2 }]}>الحساب</Text>
-              <Text style={[styles.tableCell, styles.headerText]}>مدين</Text>
-              <Text style={[styles.tableCell, styles.headerText]}>دائن</Text>
-            </View>
-            {trialData.map((item, index) => (
-              <View key={index} style={styles.tableRow}>
-                <Text style={[styles.tableCell, { flex: 2, color: '#FFF' }]}>{item.name}</Text>
-                <Text style={[styles.tableCell, { color: '#10B981' }]}>{item.debit.toLocaleString()}</Text>
-                <Text style={[styles.tableCell, { color: '#EF4444' }]}>{item.credit.toLocaleString()}</Text>
+        
+        <Text style={st.tt}>الحسابات الرئيسية</Text>
+        {mainAccounts.map((acc: any, i: number) => {
+          const subs = accounts.filter((a: any) => a.parentId === acc.id);
+          const totalSubBalance = subs.reduce((s: number, a: any) => s + (a.balance || 0), 0);
+          const isDebit = ['أصل', 'مصروف'].includes(acc.type);
+          
+          return (
+            <View key={i} style={st.card}>
+              <View style={st.cardHead}>
+                <View style={{ flex: 1 }}>
+                  <Text style={st.code}>{acc.code}</Text>
+                  <Text style={st.name}>{acc.name}</Text>
+                </View>
+                <View style={st.amounts}>
+                  {isDebit ? (
+                    <Text style={[st.amount, { color: '#10B981' }]}>{(acc.balance || 0).toLocaleString()} مدين</Text>
+                  ) : (
+                    <Text style={[st.amount, { color: '#EF4444' }]}>{(acc.balance || 0).toLocaleString()} دائن</Text>
+                  )}
+                </View>
               </View>
-            ))}
-          </View>
-        )}
-
-        <View style={{ height: 40 }} />
+              {subs.length > 0 && (
+                <View style={st.subs}>
+                  {subs.map((sub: any, j: number) => (
+                    <View key={j} style={st.subRow}>
+                      <Text style={st.subCode}>{sub.code}</Text>
+                      <Text style={st.subName}>{sub.name}</Text>
+                      <Text style={[st.subBal, { color: isDebit ? '#10B981' : '#EF4444' }]}>{(sub.balance || 0).toLocaleString()}</Text>
+                    </View>
+                  ))}
+                  <View style={st.totalSub}>
+                    <Text style={st.totalSubText}>إجمالي الفروع: {totalSubBalance.toLocaleString()}</Text>
+                  </View>
+                </View>
+              )}
+            </View>
+          );
+        })}
+        <View style={{ height: 30 }} />
       </ScrollView>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0A1128' },
-  header: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 20, paddingVertical: 16,
-  },
-  backBtn: { fontSize: 28, color: '#D4AF37', fontWeight: 'bold' },
-  title: { fontSize: 20, fontWeight: 'bold', color: '#FFFFFF' },
-  content: { flex: 1, padding: 16 },
-  summaryCard: {
-    backgroundColor: '#16213E', borderRadius: 16, padding: 20,
-    flexDirection: 'row', justifyContent: 'space-around',
-    marginBottom: 20, borderWidth: 1, borderColor: '#2a3550',
-  },
-  summaryItem: { alignItems: 'center' },
-  summaryLabel: { color: '#94a3b8', fontSize: 14, marginBottom: 8 },
-  summaryValue: { fontSize: 22, fontWeight: 'bold' },
-  emptyState: {
-    flex: 1, justifyContent: 'center', alignItems: 'center',
-    paddingVertical: 60,
-  },
-  emptyIcon: { fontSize: 64, marginBottom: 16 },
-  emptyTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: 'bold', marginBottom: 8 },
-  emptyDesc: {
-    color: '#94a3b8', fontSize: 14, textAlign: 'center',
-    marginBottom: 24, paddingHorizontal: 40,
-  },
-  addButton: {
-    backgroundColor: '#D4AF37' + '20', borderRadius: 12,
-    paddingVertical: 14, paddingHorizontal: 24,
-    borderWidth: 1, borderColor: '#D4AF37' + '40',
-  },
-  addButtonText: { color: '#D4AF37', fontSize: 16, fontWeight: 'bold' },
-  table: {
-    backgroundColor: '#16213E', borderRadius: 16,
-    overflow: 'hidden', borderWidth: 1, borderColor: '#2a3550',
-  },
-  tableRow: {
-    flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#2a3550',
-  },
-  tableHeader: {
-    backgroundColor: '#1a2240',
-  },
-  tableCell: {
-    flex: 1, padding: 14, fontSize: 14, color: '#94a3b8', textAlign: 'center',
-  },
-  headerText: {
-    color: '#D4AF37', fontWeight: 'bold', fontSize: 14,
-  },
+const st = StyleSheet.create({
+  c: { flex: 1, backgroundColor: '#0A1128' }, ct: { padding: 14 },
+  summary: { flexDirection: 'row', backgroundColor: '#16213E', borderRadius: 14, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: '#2a3550' }, sumItem: { flex: 1, alignItems: 'center' }, sumLabel: { color: '#94a3b8', fontSize: 12, marginBottom: 4 }, sumVal: { fontSize: 18, fontWeight: 'bold' },
+  tt: { fontSize: 14, fontWeight: 'bold', color: '#D4AF37', marginBottom: 10, marginTop: 10 },
+  card: { backgroundColor: '#16213E', borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#2a3550' },
+  cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, code: { color: '#94a3b8', fontSize: 11 }, name: { color: '#FFF', fontSize: 14, fontWeight: 'bold', marginTop: 2 },
+  amounts: {}, amount: { fontSize: 14, fontWeight: 'bold' },
+  subs: { marginTop: 10, borderTopWidth: 1, borderTopColor: '#2a3550', paddingTop: 10 },
+  subRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4 }, subCode: { color: '#94a3b8', fontSize: 10, width: 50 }, subName: { color: '#FFF', fontSize: 12, flex: 1 }, subBal: { fontSize: 12, fontWeight: 'bold' },
+  totalSub: { marginTop: 6, alignItems: 'flex-end' }, totalSubText: { color: '#D4AF37', fontSize: 12, fontWeight: 'bold' },
 });
